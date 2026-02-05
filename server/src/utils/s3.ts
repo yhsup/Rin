@@ -17,5 +17,6 @@ export function createS3Client() {
             accessKeyId: accessKeyId,
             secretAccessKey: secretAccessKey
         },
+        signatureVersion: "v4"
     });
 }
