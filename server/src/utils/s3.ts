@@ -12,11 +12,10 @@ export function createS3Client() {
     return new S3Client({
         region: region,
         endpoint: endpoint,
-        forcePathStyle: forcePathStyle,
+        forcePathStyle: false,
         credentials: {
             accessKeyId: accessKeyId,
             secretAccessKey: secretAccessKey
         },
-        signatureVersion: "v4"
     });
 }
