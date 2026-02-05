@@ -12,9 +12,9 @@ export function createS3Client() {
     return new S3Client({
         region: region,
         endpoint: endpoint,
+        forcePathStyle: forcePathStyle,
         credentials: {
             accessKeyId: accessKeyId,
-            forcePathStyle: forcePathStyle,
             secretAccessKey: secretAccessKey
         },
     });
