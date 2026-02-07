@@ -56,7 +56,7 @@ export function WritingPage({ id }: { id?: number }) {
     });
   };
 
-  // 初始化数据获取
+  // 初始化获取数据
   useEffect(() => {
     if (id) {
       client.feed({ id }).get({ headers: headersWithAuth() }).then(({ data }) => {
@@ -73,7 +73,7 @@ export function WritingPage({ id }: { id?: number }) {
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]); 
+  }, [id]);
 
   const debouncedUpdate = useCallback(_.debounce(() => {
     mermaid.initialize({ startOnLoad: false, theme: "default" });
@@ -82,7 +82,7 @@ export function WritingPage({ id }: { id?: number }) {
 
   useEffect(() => { debouncedUpdate(); }, [content, debouncedUpdate]);
 
-  // 使用 useMemo 稳定元数据输入组件，解决“刷新无法选择”问题
+  // 使用 useMemo 稳定元数据 UI，防止输入时重绘
   const MetaInputUI = useMemo(() => (
     <div className="flex flex-col">
       <Input id={safeId} value={title} setValue={setTitle} placeholder={t("title")} />
@@ -136,13 +136,17 @@ export function WritingPage({ id }: { id?: number }) {
             .vditor-reset, .toc-content, .markdown-content { font-family: ${fontFamily} !important; }
             .toc-content table { border-collapse: collapse; width: 100%; margin: 16px 0; border: 1px solid #ddd; }
             .toc-content th, .toc-content td { border: 1px solid #ddd; padding: 8px; }
+            /* 移动端底部补白，防止内容被固定按钮遮挡 */
+            @media (max-width: 768px) {
+              .writing-container { padding-bottom: 100px; }
+            }
           `}
         </style>
       </Helmet>
       
-      <div className="grid grid-cols-1 md:grid-cols-3 t-primary mt-2 gap-4">
+      <div className="writing-container grid grid-cols-1 md:grid-cols-3 t-primary mt-2 gap-4">
         {/* 主要编辑区 */}
-        <div className="col-span-1 md:col-span-2 pb-8">
+        <div className="col-span-1 md:col-span-2">
           <div className="bg-w rounded-2xl shadow-xl shadow-light p-4">
             {/* 移动端元数据区 */}
             <div className="md:hidden mb-6 border-b pb-6 dark:border-zinc-800">
@@ -153,21 +157,9 @@ export function WritingPage({ id }: { id?: number }) {
               key={fontFamily} 
               content={content} 
               setContent={setContent} 
-              height='600px' 
+              height='calc(100vh - 250px)' 
               fontFamily={fontFamily} 
             />
-
-            {/* 移动端发布按钮 */}
-            <div className="md:hidden flex flex-row justify-center mt-8 px-4">
-              <button 
-                onClick={publishButtonAction} 
-                disabled={publishing}
-                className="w-full bg-theme text-white py-4 rounded-full shadow-xl shadow-light flex flex-row justify-center items-center space-x-2 active:scale-95 transition-transform"
-              >
-                {publishing && <Loading type="spin" height={16} width={16} />}
-                <span className="font-bold">{id !== undefined ? t('update.title') : t('publish.title')}</span>
-              </button>
-            </div>
           </div>
         </div>
 
@@ -188,6 +180,21 @@ export function WritingPage({ id }: { id?: number }) {
           </div>
         </div>
       </div>
+
+      {/* 核心修复：移动端固定底栏 */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 p-4 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border-t dark:border-zinc-800 z-[999] flex justify-center shadow-[0_-5px_20px_rgba(0,0,0,0.1)]">
+        <button 
+          onClick={publishButtonAction} 
+          disabled={publishing}
+          className="w-full max-w-md bg-theme text-white py-3 rounded-full flex flex-row justify-center items-center space-x-2 active:scale-95 transition-transform"
+        >
+          {publishing && <Loading type="spin" height={16} width={16} />}
+          <span className="font-bold text-lg">
+            {id !== undefined ? t('update.title') : t('publish.title')}
+          </span>
+        </button>
+      </div>
+
       <AlertUI />
     </>
   );
