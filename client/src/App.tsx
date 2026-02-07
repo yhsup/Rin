@@ -103,7 +103,8 @@ function App() {
     };
   }, [])
 
-  const favicon = `${process.env.API_URL}/favicon`;
+  //const favicon = `${process.env.API_URL}/favicon`;
+  const favicon = 'https://s3te.wearebest.qzz.io/images/438805ed8e50bf5c39fd7c5f497dc53cc90b650f.ico';
 
   return (
     <>
