@@ -20,14 +20,13 @@ export function UserService() {
                     redirect_to.value = `${referer_url.protocol}//${referer_url.host}`
                     return oauth2.redirect("GitHub", { scopes: ["read:user"] })
                 })
-                .get("/github/callback", async ({ jwt, oauth2, set, cookie: { token, redirect_to } }) => {
-                    
-                    // ============= 部署验证断点 =============
-                    // 只要看到这个报错，就证明“老代码”已被彻底替换。
-                    throw new Error("DEPLOY_SUCCESS_CHECK"); 
-                    // =======================================
+                .get("/github/callback", async ({ jwt, oauth2, set, store, query, cookie: { token, redirect_to, state } }) => {
+
+                    console.log('state', state.value)
+                    console.log('p_state', query.state)
 
                     const gh_token = await oauth2.authorize("GitHub");
+                    // request https://api.github.com/user for user info
                     const response = await fetch("https://api.github.com/user", {
                         headers: {
                             Authorization: `Bearer ${gh_token.accessToken}`,
@@ -35,51 +34,56 @@ export function UserService() {
                             "User-Agent": "elysia"
                         },
                     });
-                    
-                    const githubUser: any = await response.json();
-                    const githubId = githubUser.id.toString();
-
-                    const existingUser = await db.query.users.findFirst({ 
-                        where: eq(users.openid, githubId) 
-                    });
-
-                    let finalUserId: number;
-
-                    // 使用“熔断”式检查，彻底解决 TS18048
-                    if (existingUser !== undefined && existingUser !== null) {
-                        // 老用户：直接拿 ID，没有任何 update 语句
-                        finalUserId = existingUser.id;
-                    } else {
-                        // 新用户或锁定逻辑
-                        const allUsers = await db.query.users.findMany();
-                        if (allUsers && allUsers.length > 0) {
-                            throw new Error('系统已锁定：仅允许管理员登录。');
-                        }
-
-                        const result = await db.insert(users)
-                            .values({
-                                openid: githubId,
-                                username: githubUser.name || githubUser.login,
-                                avatar: githubUser.avatar_url,
-                                permission: 1 
-                            })
-                            .returning({ insertedId: users.id });
-
-                        if (!result?.[0]?.insertedId) {
-                            throw new Error('Failed to register: No ID returned');
-                        }
-                        finalUserId = result[0].insertedId;
-                    }
-
-                    token.set({
-                        value: await jwt.sign({ id: finalUserId }),
-                        expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
-                        path: '/',
-                    });
-
+                    const user: any = await response.json();
+                    const profile: {
+                        openid: string;
+                        username: string;
+                        avatar: string;
+                        permission: number | null;
+                    } = {
+                        openid: user.id,
+                        username: user.name || user.login,
+                        avatar: user.avatar_url,
+                        permission: 0
+                    };
+                    await db.query.users.findFirst({ where: eq(users.openid, profile.openid) })
+                        .then(async (user) => {
+                            if (user) {
+                                profile.permission = user.permission
+                                await db.update(users).set(profile).where(eq(users.id, user.id));
+                                token.set({
+                                    value: await jwt.sign({ id: user.id }),
+                                    expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
+                                    path: '/',
+                                })
+                            } else {
+                                // if no user exists, set permission to 1
+                                // store.anyUser is a global state to cache the existence of any user
+                                if (!await store.anyUser(db)) {
+                                    const realTimeCheck = (await db.query.users.findMany())?.length > 0
+                                    if (!realTimeCheck) {
+                                        profile.permission = 1
+                                        store.anyUser = async (_: DB) => true
+                                    }
+                                }
+                                const result = await db.insert(users).values(profile).returning({ insertedId: users.id });
+                                if (!result || result.length === 0) {
+                                    throw new Error('Failed to register');
+                                } else {
+                                    token.set({
+                                        value: await jwt.sign({ id: result[0].insertedId }),
+                                        expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
+                                        path: '/',
+                                    })
+                                }
+                            }
+                        });
                     const redirect_host = redirect_to.value || ""
-                    set.headers = { 'Content-Type': 'text/html' }
-                    set.redirect = `${redirect_host}/callback?token=${token.value}`
+                    const redirect_url = (`${redirect_host}/callback?token=${token.value}`);
+                    set.headers = {
+                        'Content-Type': 'text/html',
+                    }
+                    set.redirect = redirect_url
                 }, {
                     query: t.Object({
                         state: t.String(),
@@ -93,76 +97,6 @@ export function UserService() {
                     }
                     const uid_num = parseInt(uid)
                     const user = await db.query.users.findFirst({ where: eq(users.id, uid_num) })
-                    if (!user) {
-                        set.status = 404
-                        return 'User not found'
-                    }
-                    return {
-                        id: user.id,
-                        username: user.username,
-                        avatar: user.avatar,
-                        permission: user.permission === 1,
-                        createdAt: user.createdAt,
-                        updatedAt: user.updatedAt,
-                    }
-                })
-        )
-}                    });
-                    
-                    const githubUser: any = await response.json();
-                    const githubId = githubUser.id.toString();
-
-                    const existingUser = await db.query.users.findFirst({ 
-                        where: eq(users.openid, githubId) 
-                    });
-
-                    let finalUserId: number;
-
-                    if (existingUser) {
-                        // 使用强制断言访问 ID，因为 if(existingUser) 已经保证了其存在
-                        finalUserId = existingUser.id;
-                    } else {
-                        const allUsers = await db.query.users.findMany();
-                        if (allUsers && allUsers.length > 0) {
-                            throw new Error('系统已锁定：仅允许管理员登录。');
-                        }
-
-                        const result = await db.insert(users)
-                            .values({
-                                openid: githubId,
-                                username: githubUser.name || githubUser.login,
-                                avatar: githubUser.avatar_url,
-                                permission: 1 
-                            })
-                            .returning({ insertedId: users.id });
-
-                        if (!result?.[0]?.insertedId) {
-                            throw new Error('Failed to register: No ID returned');
-                        }
-                        finalUserId = result[0].insertedId;
-                    }
-
-                    token.set({
-                        value: await jwt.sign({ id: finalUserId }),
-                        expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
-                        path: '/',
-                    });
-
-                    const redirect_host = redirect_to.value || ""
-                    set.headers = { 'Content-Type': 'text/html' }
-                    set.redirect = `${redirect_host}/callback?token=${token.value}`
-                }, {
-                    query: t.Object({
-                        state: t.String(),
-                        code: t.String(),
-                    })
-                })
-                .get('/profile', async ({ set, uid }) => {
-                    if (!uid) {
-                        set.status = 403
-                        return 'Permission denied'
-                    }
-                    const user = await db.query.users.findFirst({ where: eq(users.id, parseInt(uid)) })
                     if (!user) {
                         set.status = 404
                         return 'User not found'
