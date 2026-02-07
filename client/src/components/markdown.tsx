@@ -384,8 +384,6 @@ export function Markdown({ content }: { content: string }) {
         zoom={{
           maxZoomPixelRatio: 3,    // 2. 显式设置最大放大倍数
           scrollToZoom: true,      // 3. 允许滚轮缩放
-          doubleTapAction: "zoom", // 4. 允许手机端双击放大
-          doubleClickAction: "zoom", // 5. 允许电脑端双击放大
         }}
       />
     </>
