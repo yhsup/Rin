@@ -23,7 +23,7 @@ export function UserService() {
                 .get("/github/callback", async ({ jwt, oauth2, set, cookie: { token, redirect_to } }) => {
                     
                     // ============= 调试断点 =============
-                    // 运行 client:check 成功后部署，登录时若看到此报错，说明部署成功
+                    // 编译通过后部署，登录时若看到此报错，说明部署已生效
                     throw new Error("DEPLOY_SUCCESS_CHECK"); 
                     // ===================================
 
@@ -46,10 +46,12 @@ export function UserService() {
 
                     let finalUserId: number;
 
-                    // 使用明确的类型保护修复 TS18048
-                    if (existingUser && existingUser.id) {
+                    // 使用强校验逻辑，确保 TypeScript 满意
+                    if (existingUser && typeof existingUser.id === 'number') {
+                        // 老用户逻辑：直接读取 ID，不执行 update
                         finalUserId = existingUser.id;
                     } else {
+                        // 新用户或锁定逻辑
                         const allUsers = await db.query.users.findMany();
                         if (allUsers && allUsers.length > 0) {
                             throw new Error('系统已锁定：仅允许管理员登录。');
@@ -66,10 +68,11 @@ export function UserService() {
                             .values(newProfile)
                             .returning({ insertedId: users.id });
 
-                        if (!result || result.length === 0 || !result[0].insertedId) {
-                            throw new Error('Failed to register');
+                        const insertedId = result?.[0]?.insertedId;
+                        if (typeof insertedId !== 'number') {
+                            throw new Error('Failed to register: No ID returned');
                         }
-                        finalUserId = result[0].insertedId;
+                        finalUserId = insertedId;
                     }
 
                     token.set({
