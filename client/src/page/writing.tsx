@@ -150,33 +150,45 @@ export function WritingPage({ id }: { id?: number }) {
         <title>{`${t('writing')} - ${process.env.NAME}`}</title>
         <style>
           {`
-            /* 1. 强制覆盖 Monaco Editor 的根变量 */
-            .monaco-editor {
-              --vscode-editor-font-family: ${fontFamily} !important;
-              --vscode-editor-font-size: ${fontSize} !important;
+            /* 1. 定义全局变量，方便同步 */
+            :root {
+              --editor-fs: ${fontSize};
+              /* 动态计算行高：字号 * 1.5 */
+              --editor-lh: calc(${fontSize.replace('px', '')} * 1.5px);
             }
-      
-            /* 2. 深度穿透：Monaco 所有的文字容器 */
+        
+            /* 2. 核心：强制重置 Monaco 的行高变量 */
+            .monaco-editor {
+              --vscode-editor-font-size: var(--editor-fs) !important;
+              line-height: var(--editor-lh) !important;
+            }
+        
+            /* 3. 修复高亮选中块 (Selection) */
+            .monaco-editor .view-overlays .selected-text {
+              height: var(--editor-lh) !important;
+            }
+        
+            /* 4. 修复当前行高亮 (Current Line) */
+            .monaco-editor .view-overlays .current-line {
+              height: var(--editor-lh) !important;
+            }
+        
+            /* 5. 所有的文字行、行号、输入框统一同步 */
             .monaco-editor .view-lines,
             .monaco-editor .view-line,
-            .monaco-editor .view-line span,
             .monaco-editor .line-numbers,
+            .monaco-editor .lines-content,
             .monaco-editor .inputarea {
-              font-size: ${fontSize} !important;
+              font-size: var(--editor-fs) !important;
               font-family: ${fontFamily} !important;
-              /* 这里的 line-height 必须根据字号动态计算，或者设为 initial 强制 Monaco 重新对齐 */
-              line-height: 1.6 !important;
+              line-height: var(--editor-lh) !important;
+              height: var(--editor-lh) !important; /* 关键：行容器高度必须等于行高 */
             }
-      
-            /* 3. 解决光标错位问题 */
-            .monaco-editor .cursor {
-              height: ${fontSize === '12px' ? '16px' : fontSize === '24px' ? '28px' : '20px'} !important;
-            }
-      
-            /* 4. 预览区同步修改 */
-            .toc-content, .vditor-reset {
-              font-size: ${fontSize} !important;
-              font-family: ${fontFamily} !important;
+        
+            /* 6. 修正行号的对齐 */
+            .monaco-editor .line-numbers {
+              width: calc(var(--editor-fs) * 2) !important;
+              text-align: right !important;
             }
           `}
         </style>
