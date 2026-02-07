@@ -43,12 +43,11 @@ export function UserService() {
                         where: eq(users.openid, githubId) 
                     });
 
-                    let finalUserId: number | undefined;
+                    let finalUserId: number;
 
-                    // 这里的逻辑确保 TS 能够识别 existingUser 绝对存在
                     if (existingUser) {
-                        const { id } = existingUser;
-                        finalUserId = id;
+                        // 使用强制断言访问 ID，因为 if(existingUser) 已经保证了其存在
+                        finalUserId = existingUser.id;
                     } else {
                         const allUsers = await db.query.users.findMany();
                         if (allUsers && allUsers.length > 0) {
@@ -64,11 +63,10 @@ export function UserService() {
                             })
                             .returning({ insertedId: users.id });
 
-                        finalUserId = result?.[0]?.insertedId;
-                    }
-
-                    if (typeof finalUserId !== 'number') {
-                        throw new Error('Failed to resolve User ID');
+                        if (!result?.[0]?.insertedId) {
+                            throw new Error('Failed to register: No ID returned');
+                        }
+                        finalUserId = result[0].insertedId;
                     }
 
                     token.set({
