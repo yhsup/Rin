@@ -31,57 +31,86 @@ function App() {
   const { t } = useTranslation()
   const [profile, setProfile] = useState<Profile | undefined>()
   const [config, setConfig] = useState<ConfigWrapper>(new ConfigWrapper({}, new Map()))
+
   useEffect(() => {
-    // --- 自动缩放逻辑开始 ---
-    const HIGH_RES_THRESHOLD = 2560; // 定义高分屏阈值
+    // --- 1. 自动缩放逻辑 ---
+    const HIGH_RES_THRESHOLD = 2560;
     const applyScaling = () => {
       if (window.screen.width >= HIGH_RES_THRESHOLD) {
-        document.documentElement.style.fontSize = '125%'; // 应用 125% 缩放
+        document.documentElement.style.fontSize = '125%';
       } else {
-        document.documentElement.style.fontSize = '100%'; // 恢复默认
+        document.documentElement.style.fontSize = '100%';
       }
     };
     applyScaling();
-    // --- 自动缩放逻辑结束 ---
-    if (ref.current) return
-    if (getCookie('token')?.length ?? 0 > 0) {
-      client.user.profile.get({
-        headers: headersWithAuth()
-      }).then(({ data }) => {
-        if (data && typeof data !== 'string') {
-          setProfile({
-            id: data.id,
-            avatar: data.avatar || '',
-            permission: data.permission,
-            name: data.username
-          })
-        }
-      })
+
+    // --- 2. 图片安全防护逻辑 ---
+    const handleContextMenu = (e: MouseEvent) => {
+      // 拦截所有 <img> 标签的右键菜单
+      if ((e.target as HTMLElement).tagName === 'IMG') {
+        e.preventDefault();
+      }
+    };
+
+    const handleDragStart = (e: DragEvent) => {
+      // 禁止 <img> 标签被鼠标拖拽
+      if ((e.target as HTMLElement).tagName === 'IMG') {
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('dragstart', handleDragStart);
+
+    // --- 3. 原有业务逻辑 (Profile & Config) ---
+    if (!ref.current) {
+      if ((getCookie('token')?.length ?? 0) > 0) {
+        client.user.profile.get({
+          headers: headersWithAuth()
+        }).then(({ data }) => {
+          if (data && typeof data !== 'string') {
+            setProfile({
+              id: data.id,
+              avatar: data.avatar || '',
+              permission: data.permission,
+              name: data.username
+            })
+          }
+        })
+      }
+      
+      const savedConfig = sessionStorage.getItem('config')
+      if (savedConfig) {
+        const configObj = JSON.parse(savedConfig)
+        const configWrapper = new ConfigWrapper(configObj, defaultClientConfig)
+        setConfig(configWrapper)
+      } else {
+        client.config({ type: "client" }).get().then(({ data }) => {
+          if (data && typeof data !== 'string') {
+            sessionStorage.setItem('config', JSON.stringify(data))
+            const config = new ConfigWrapper(data, defaultClientConfig)
+            setConfig(config)
+          }
+        })
+      }
+      ref.current = true
     }
-    const config = sessionStorage.getItem('config')
-    if (config) {
-      const configObj = JSON.parse(config)
-      const configWrapper = new ConfigWrapper(configObj, defaultClientConfig)
-      setConfig(configWrapper)
-    } else {
-      client.config({ type: "client" }).get().then(({ data }) => {
-        if (data && typeof data !== 'string') {
-          sessionStorage.setItem('config', JSON.stringify(data))
-          const config = new ConfigWrapper(data, defaultClientConfig)
-          setConfig(config)
-        }
-      })
-    }
-    ref.current = true
+
+    // --- 4. 卸载时的清理函数 ---
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('dragstart', handleDragStart);
+    };
   }, [])
+
   const favicon = `${process.env.API_URL}/favicon`;
+
   return (
     <>
       <ClientConfigContext.Provider value={config}>
         <ProfileContext.Provider value={profile}>
           <Helmet>
-            {favicon &&
-              <link rel="icon" href={favicon} />}
+            {favicon && <link rel="icon" href={favicon} />}
           </Helmet>
           <Switch>
             <RouteMe path="/">
@@ -105,21 +134,16 @@ function App() {
             </RouteMe>
 
             <RouteMe path="/hashtag/:name">
-              {params => {
-                return (<HashtagPage name={params.name || ""} />)
-              }}
+              {params => <HashtagPage name={params.name || ""} />}
             </RouteMe>
 
             <RouteMe path="/search/:keyword">
-              {params => {
-                return (<SearchPage keyword={params.keyword || ""} />)
-              }}
+              {params => <SearchPage keyword={params.keyword || ""} />}
             </RouteMe>
 
             <RouteMe path="/settings" paddingClassName='mx-4' requirePermission>
               <Settings />
             </RouteMe>
-
 
             <RouteMe path="/writing" paddingClassName='mx-4' requirePermission>
               <WritingPage />
@@ -128,9 +152,7 @@ function App() {
             <RouteMe path="/writing/:id" paddingClassName='mx-4' requirePermission>
               {({ id }) => {
                 const id_num = tryInt(0, id)
-                return (
-                  <WritingPage id={id_num} />
-                )
+                return <WritingPage id={id_num} />
               }}
             </RouteMe>
 
@@ -139,17 +161,11 @@ function App() {
             </RouteMe>
 
             <RouteWithIndex path="/feed/:id">
-              {(params, TOC, clean) => {
-                return (<FeedPage id={params.id || ""} TOC={TOC} clean={clean} />)
-              }}
+              {(params, TOC, clean) => <FeedPage id={params.id || ""} TOC={TOC} clean={clean} />}
             </RouteWithIndex>
 
             <RouteWithIndex path="/:alias">
-              {(params, TOC, clean) => {
-                return (
-                  <FeedPage id={params.alias || ""} TOC={TOC} clean={clean} />
-                )
-              }}
+              {(params, TOC, clean) => <FeedPage id={params.alias || ""} TOC={TOC} clean={clean} />}
             </RouteWithIndex>
 
             <RouteMe path="/user/github">
@@ -176,7 +192,6 @@ function App() {
               )}
             </RouteMe>
 
-            {/* Default route in a switch */}
             <RouteMe>
               <ErrorPage error={t('error.not_found')} />
             </RouteMe>
@@ -197,8 +212,8 @@ function RouteMe({ path, children, headerComponent, paddingClassName, requirePer
   }
   return (
     <Route path={path} >
-      {params => {
-        return (<>
+      {params => (
+        <>
           <Header>
             {headerComponent}
           </Header>
@@ -206,21 +221,20 @@ function RouteMe({ path, children, headerComponent, paddingClassName, requirePer
             {typeof children === 'function' ? children(params) : children}
           </Padding>
           <Footer />
-        </>)
-      }}
+        </>
+      )}
     </Route>
   )
 }
 
-
 function RouteWithIndex({ path, children }:
   { path: PathPattern, children: (params: DefaultParams, TOC: () => JSX.Element, clean: (id: string) => void) => React.ReactNode }) {
   const { TOC, cleanup } = useTableOfContents(".toc-content");
-  return (<RouteMe path={path} headerComponent={TOCHeader({ TOC: TOC })} paddingClassName='mx-4'>
-    {params => {
-      return children(params, TOC, cleanup)
-    }}
-  </RouteMe>)
+  return (
+    <RouteMe path={path} headerComponent={TOCHeader({ TOC: TOC })} paddingClassName='mx-4'>
+      {params => children(params, TOC, cleanup)}
+    </RouteMe>
+  )
 }
 
 export default App
