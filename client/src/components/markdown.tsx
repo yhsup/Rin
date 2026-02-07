@@ -18,7 +18,7 @@ import Zoom from "yet-another-react-lightbox/plugins/zoom";
 import "yet-another-react-lightbox/styles.css";
 import { useColorMode } from "../utils/darkModeUtils";
 
-// 工具函数保持不变
+// --- 工具函数：计算节点前的换行符数量 ---
 const countNewlinesBeforeNode = (text: string, offset: number) => {
   let newlinesBefore = 0;
   for (let i = offset - 1; i >= 0; i--) {
@@ -28,36 +28,24 @@ const countNewlinesBeforeNode = (text: string, offset: number) => {
   return newlinesBefore;
 };
 
+// --- 工具函数：判断是否是行末的图片链接 ---
 const isMarkdownImageLinkAtEnd = (text: string) => {
   const trimmed = text.trim();
   const match = trimmed.match(/(.*)(!\\[.*?\\]\\(.*?\\))$/s);
   return match ? (match[1].trim().length === 0 || match[1].endsWith("\n")) : false;
 };
 
-// 样式解析补丁
-const parseInlineStyle = (style: any): React.CSSProperties => {
-  if (typeof style !== 'string') return style || {};
-  const styleObj: any = {};
-  style.split(';').forEach(rule => {
-    const [key, value] = rule.split(':');
-    if (key && value) {
-      const camelKey = key.trim().replace(/-([a-z])/g, g => g[1].toUpperCase());
-      let finalValue = value.trim().replace(/&quot;/g, '').replace(/"/g, '');
-      
-      if (camelKey === 'fontFamily') {
-        if (finalValue.includes('Zhi Mang Xing')) finalValue = "'Zhi Mang Xing', cursive";
-        else if (finalValue.includes('Ma Shan Zheng')) finalValue = "'Ma Shan Zheng', cursive";
-        else if (finalValue.includes('Noto Serif SC')) finalValue = "'Noto Serif SC', serif";
-      }
-      styleObj[camelKey] = finalValue;
-    }
-  });
-
-  if (styleObj.fontSize || styleObj.lineHeight || styleObj.fontFamily) {
-    styleObj.display = 'inline-block';
-    styleObj.maxWidth = '100%';
-  }
-  return styleObj;
+// --- 核心逻辑：将 Style 转换为全局 Class ---
+const getClassNameFromStyle = (style: any): string => {
+  if (typeof style !== 'string') return "";
+  const styles = style.toLowerCase();
+  let classes = [];
+  
+  if (styles.includes('zhi mang xing')) classes.push('font-zhi-mang');
+  if (styles.includes('noto serif sc')) classes.push('font-noto-serif');
+  if (styles.includes('ma shan zheng')) classes.push('font-ma-shan');
+  
+  return classes.join(' ');
 };
 
 export function Markdown({ content }: { content: string }) {
@@ -66,40 +54,8 @@ export function Markdown({ content }: { content: string }) {
   const slides = useRef<SlideImage[]>();
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // 1. 动态加载字体资源（防止 @import 被拦截）
   useEffect(() => {
-    const fontId = 'rin-google-fonts';
-    if (!document.getElementById(fontId)) {
-      const link = document.createElement('link');
-      link.id = fontId;
-      link.rel = 'stylesheet';
-      link.href = 'https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;700&family=Zhi+Mang+Xing&display=swap';
-      document.head.appendChild(link);
-    }
-  }, []);
-
-  // 2. 暴力监听修正逻辑
-  useEffect(() => {
-    const fixStyles = () => {
-      if (!containerRef.current) return;
-      const elements = containerRef.current.querySelectorAll('.toc-content span[style]');
-      elements.forEach((el) => {
-        const target = el as HTMLElement;
-        const styleStr = target.getAttribute('style') || '';
-        if (styleStr.includes('Zhi Mang Xing')) target.style.setProperty('font-family', "'Zhi Mang Xing', cursive", 'important');
-        if (styleStr.includes('Noto Serif SC')) target.style.setProperty('font-family', "'Noto Serif SC', serif", 'important');
-        if (styleStr.includes('Ma Shan Zheng')) target.style.setProperty('font-family', "'Ma Shan Zheng', cursive", 'important');
-        
-        if (styleStr.includes('font-size') || styleStr.includes('line-height')) {
-            target.style.setProperty('display', 'inline-block', 'important');
-        }
-      });
-    };
-
-    fixStyles();
-    const observer = new MutationObserver(fixStyles);
-    if (containerRef.current) observer.observe(containerRef.current, { childList: true, subtree: true });
-    return () => observer.disconnect();
+    slides.current = undefined;
   }, [content]);
 
   const show = (src: string | undefined) => {
@@ -107,44 +63,49 @@ export function Markdown({ content }: { content: string }) {
     if (!slidesLocal) {
       if (!containerRef.current) return;
       const images = containerRef.current.querySelectorAll("img");
-      slidesLocal = Array.from(images).map(img => ({
-        src: img.getAttribute("src") || "",
-        alt: img.getAttribute("alt") || "",
+      slidesLocal = Array.from(images).map((image) => ({
+        src: image.getAttribute("src") || "",
+        alt: image.getAttribute("alt") || "",
         imageFit: "contain" as const,
-        download: { url: img.getAttribute("src") || "", filename: "image" },
-      })).filter(s => s.src !== "");
+        download: { 
+          url: image.getAttribute("src") || "", 
+          filename: (image.getAttribute("src") || "").split("/").pop() || "image" 
+        },
+      })).filter((slide) => slide.src !== "");
       slides.current = slidesLocal;
     }
-    setIndex(slidesLocal?.findIndex(s => s.src === src) ?? -1);
+    const idx = slidesLocal?.findIndex((slide) => slide.src === src) ?? -1;
+    setIndex(idx);
   };
 
   const Content = useMemo(() => (
     <div ref={containerRef} className="markdown-render-wrapper">
-      <style>{`
-        /* 使用极其粗暴的通用选择器补丁 */
-        .toc-content span[style*="Zhi Mang Xing"] { font-family: 'Zhi Mang Xing', cursive !important; display: inline-block !important; }
-        .toc-content span[style*="Noto Serif SC"] { font-family: 'Noto Serif SC', serif !important; display: inline-block !important; }
-        .toc-content span[style*="Ma Shan Zheng"] { font-family: 'Ma Shan Zheng', cursive !important; display: inline-block !important; }
-        
-        .toc-content { white-space: pre-wrap !important; word-break: break-word; line-height: 1.6; }
-      `}</style>
-
       <ReactMarkdown
         className="toc-content dark:text-neutral-300"
         remarkPlugins={[gfm, remarkMermaid, remarkMath, remarkAlert]}
         children={content}
         rehypePlugins={[rehypeKatex, rehypeRaw]}
         components={{
-          p: ({ node, style, ...p }) => <p className="my-2" style={parseInlineStyle(style)} {...p} />,
-          span: ({ node, style, ...p }) => <span style={parseInlineStyle(style)} {...p} />,
-          div: ({ node, style, ...p }) => <div style={parseInlineStyle(style)} {...p} />,
-          img({ node, src, ...p }) {
+          // 这里的关键是：识别 style 并将其转为我们 index.css 中定义的 class
+          span: ({ node, style, className, ...props }) => {
+            const fontClass = getClassNameFromStyle(style);
+            return <span className={`${className || ''} ${fontClass}`.trim()} {...props} />;
+          },
+          p: ({ node, ...props }) => <p className="my-2" {...props} />,
+          div: ({ node, ...props }) => <div {...props} />,
+          img({ node, src, ...props }) {
             const offset = node?.position?.start.offset ?? 0;
             const previousContent = content.slice(0, offset);
             const isBlock = countNewlinesBeforeNode(previousContent, offset) >= 1 || isMarkdownImageLinkAtEnd(previousContent);
             return (
               <span className={isBlock ? "block w-full text-center my-4" : "inline-block align-middle mx-1"}>
-                <img src={src} {...p} onClick={() => show(src)} className={`mx-auto ${isBlock ? "rounded-xl" : ""}`} style={{ zoom: isBlock ? "0.75" : "0.5" }} />
+                <img 
+                  src={src} 
+                  {...props} 
+                  onClick={() => show(src)}
+                  className={`mx-auto ${isBlock ? "rounded-xl" : ""}`}
+                  style={{ zoom: isBlock ? "0.75" : "0.5" }}
+                />
               </span>
             );
           },
@@ -156,10 +117,23 @@ export function Markdown({ content }: { content: string }) {
             if (isCodeBlock) {
               return (
                 <div className="relative group">
-                  <SyntaxHighlighter PreTag="div" language={match ? match[1] : ""} style={colorMode === "dark" ? vscDarkPlus : base16AteliersulphurpoolLight} wrapLongLines={true} codeTagProps={{ style: { fontFamily: '"Fira Code", monospace', fontSize: "14px" } }}>
+                  <SyntaxHighlighter 
+                    PreTag="div" 
+                    language={match ? match[1] : ""}
+                    style={colorMode === "dark" ? vscDarkPlus : base16AteliersulphurpoolLight}
+                    wrapLongLines={true} 
+                    codeTagProps={{ style: { fontFamily: '"Fira Code", monospace', fontSize: "14px" } }}
+                  >
                     {String(children).replace(/\n$/, "")}
                   </SyntaxHighlighter>
-                  <button className="absolute top-1 right-1 px-2 py-1 bg-w rounded-md text-sm bg-hover invisible group-hover:visible" onClick={() => { navigator.clipboard.writeText(String(children)); setCopied(true); setTimeout(() => setCopied(false), 2000); }}>
+                  <button 
+                    className="absolute top-1 right-1 px-2 py-1 bg-w rounded-md text-sm bg-hover invisible group-hover:visible"
+                    onClick={() => {
+                      navigator.clipboard.writeText(String(children));
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    }}
+                  >
                     {copied ? "Copied!" : "Copy"}
                   </button>
                 </div>
@@ -175,7 +149,14 @@ export function Markdown({ content }: { content: string }) {
   return (
     <>
       {Content}
-      <Lightbox plugins={[Zoom, Counter]} index={index} slides={slides.current} open={index >= 0} close={() => setIndex(-1)} zoom={{ maxZoomPixelRatio: 3, scrollToZoom: true }} />
+      <Lightbox 
+        plugins={[Zoom, Counter]} 
+        index={index} 
+        slides={slides.current} 
+        open={index >= 0} 
+        close={() => setIndex(-1)} 
+        zoom={{ maxZoomPixelRatio: 3, scrollToZoom: true }} 
+      />
     </>
   );
 }
