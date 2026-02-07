@@ -30,9 +30,6 @@ export function Markdown({ content }: { content: string }) {
         .toc-content table { border-collapse: collapse; width: 100%; margin: 1rem 0; display: table !important; }
         .toc-content th, .toc-content td { border: 1px solid #ddd; padding: 8px; }
         .aspect-video { aspect-ratio: 16 / 9; width: 100%; background: #000; border-radius: 0.75rem; overflow: hidden; }
-        
-        /* 针对 B 站嵌入的黑边和画质提示优化 */
-        .bili-iframe { border: none; width: 100%; height: 100%; }
       `}</style>
 
       <ReactMarkdown
@@ -45,44 +42,56 @@ export function Markdown({ content }: { content: string }) {
           td: ({ node, ...props }) => <td className="border" {...props} />,
           
           a: ({ node, children, href, ...props }: any) => {
-            // 1. 原生视频
+            // 1. 原生视频链接
             if (href?.match(/\.(mp4|webm|ogg)$/i)) {
               return (
-                <div className="my-4">
+                <div className="my-4 text-center">
                   <video src={href} controls className="w-full rounded-xl shadow-lg" />
-                  <p className="text-[10px] text-center opacity-40 mt-1 italic">{String(children)}</p>
+                  <a href={href} target="_blank" rel="noreferrer" className="text-[10px] text-theme opacity-50 mt-1 italic hover:underline">
+                    {String(children) || "查看视频原文件"}
+                  </a>
                 </div>
               );
             }
 
-            // 2. YouTube
+            // 2. YouTube 嵌入
             if (href?.includes('youtube.com/watch') || href?.includes('youtu.be/')) {
               const videoId = href.includes('v=') ? href.split('v=')[1]?.split('&')[0] : href.split('/').pop();
               return (
-                <div className="aspect-video my-4 shadow-xl">
-                  <iframe className="w-full h-full" src={`https://www.youtube.com/embed/${videoId}`} allowFullScreen></iframe>
+                <div className="my-4">
+                  <div className="aspect-video shadow-xl">
+                    <iframe className="w-full h-full" src={`https://www.youtube.com/embed/${videoId}`} allowFullScreen></iframe>
+                  </div>
+                  <a href={href} target="_blank" rel="noreferrer" className="text-[10px] block text-center mt-2 text-theme opacity-60 hover:underline">
+                    在 YouTube 中打开
+                  </a>
                 </div>
               );
             }
 
-            // 3. Bilibili (高清优化版)
+            // 3. Bilibili 嵌入 (已删除无效注入代码，保留纯净链接和归属链接)
             if (href?.includes('bilibili.com/video/')) {
               const bvid = href.split('video/')[1]?.split('/')[0]?.split('?')[0];
-              // 自动加上 high_quality=1 强制高清，as_wide=1 宽屏
-              const biliSrc = `//player.bilibili.com/player.html?bvid=${bvid}&page=1&high_quality=1&as_wide=1&danmaku=0&autoplay=0`;
+              // 使用最基础的嵌入 URL
+              const biliSrc = `//player.bilibili.com/player.html?bvid=${bvid}&page=1&danmaku=0`;
               return (
                 <div className="my-4">
                   <div className="aspect-video shadow-xl">
                     <iframe 
-                      className="bili-iframe"
+                      className="w-full h-full border-none"
                       src={biliSrc} 
                       allowFullScreen 
-                      sandbox="allow-top-navigation allow-same-origin allow-forms allow-scripts"
                     ></iframe>
                   </div>
-                  {/* 提供直达 B 站的链接方便全屏交互 */}
-                  <a href={href} target="_blank" rel="noreferrer" className="text-[10px] block text-center mt-2 text-theme opacity-60">
-                    在 B 站观看更清晰 (视频源: {bvid})
+                  {/* 强化归属链接，方便用户跳转至高清版 */}
+                  <a 
+                    href={href} 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className="text-[11px] block text-center mt-2 text-theme opacity-80 font-medium hover:underline"
+                  >
+                    <i className="ri-bilibili-line mr-1"></i>
+                    前往 Bilibili 观看高清原片 ({String(children)})
                   </a>
                 </div>
               );
