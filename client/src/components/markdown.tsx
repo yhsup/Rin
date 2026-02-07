@@ -18,6 +18,7 @@ import Zoom from "yet-another-react-lightbox/plugins/zoom";
 import "yet-another-react-lightbox/styles.css";
 import { useColorMode } from "../utils/darkModeUtils";
 
+
 const countNewlinesBeforeNode = (text: string, offset: number) => {
   let newlinesBefore = 0;
   for (let i = offset - 1; i >= 0; i--) {
@@ -32,11 +33,15 @@ const countNewlinesBeforeNode = (text: string, offset: number) => {
 
 const isMarkdownImageLinkAtEnd = (text: string) => {
   const trimmed = text.trim();
+
   const match = trimmed.match(/(.*)(!\\[.*?\\]\\(.*?\\))$/s);
+
   if (match) {
     const [, beforeImage, _] = match;
+
     return beforeImage.trim().length === 0 || beforeImage.endsWith("\n");
   }
+
   return false;
 };
 
@@ -50,23 +55,33 @@ export function Markdown({ content }: { content: string }) {
   }, [content]);
 
   const Content = useMemo(() => (
-    <div className="markdown-render-container">
-      {/* 注入发布后的样式补丁：解决字体加载、换行、字体大小失效 */}
+    <div className="markdown-render-wrapper">
       <style>{`
+        /* 1. 加载中文字体库 */
         @import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;700&family=Zhi+Mang+Xing&display=swap');
         
+        /* 2. 核心排版：保留换行，并允许行高继承 */
         .toc-content {
-          white-space: pre-wrap !important; /* 保留原始换行 */
+          white-space: pre-wrap !important;
           word-break: break-word;
-          line-height: 1.6;
+          line-height: inherit; /* 允许内联样式覆盖默认行高 */
         }
 
-        /* 强制允许内联样式中的字体和大小生效 */
+        /* 3. 强制 span 标签的内联样式生效 */
         .toc-content span[style] {
-          display: inline-block; 
+          display: inline-block; /* 必须为 inline-block 才能完美支撑自定义行高和垂直边距 */
+          line-height: inherit !important;
+          text-decoration: inherit;
         }
 
-        /* 字体补丁：如果内联样式指定了这些字体，确保它们被正确映射到加载的字体库 */
+        /* 4. 修复段落 P 标签对字号和行高的挤压 */
+        .toc-content p {
+          line-height: inherit !important;
+          font-size: inherit !important;
+          margin-bottom: 0.75em;
+        }
+
+        /* 5. 字体映射补丁 */
         [style*="Ma Shan Zheng"] { font-family: 'Ma Shan Zheng', cursive !important; }
         [style*="Zhi Mang Xing"] { font-family: 'Zhi Mang Xing', cursive !important; }
         [style*="Noto Serif SC"] { font-family: 'Noto Serif SC', serif !important; }
@@ -311,7 +326,7 @@ export function Markdown({ content }: { content: string }) {
           },
           p({ children, ...props }) {
             return (
-              <p className="mt-2 py-1 leading-relaxed" {...props}>
+              <p className="mt-2 py-1 leading-inherit" {...props}>
                 {children}
               </p>
             );
@@ -319,11 +334,11 @@ export function Markdown({ content }: { content: string }) {
           hr({ children, ...props }) {
             return <hr className="my-4" {...props} />;
           },
-          table: ({ ...props }) => <table className="table" {...props} />,
-          th: ({ ...props }) => (
+          table: ({ node, ...props }) => <table className="table" {...props} />,
+          th: ({ node, ...props }) => (
             <th className="px-4 py-2 border bg-gray-600" {...props} />
           ),
-          td: ({ ...props }) => (
+          td: ({ node, ...props }) => (
             <td className="px-4 py-2 border" {...props} />
           ),
           sup: ({ children, ...props }) => (
@@ -355,6 +370,8 @@ export function Markdown({ content }: { content: string }) {
       />
     </div>
   ), [content, colorMode]);
+
+
 
   const show = (src: string | undefined) => {
     let slidesLocal = slides.current;
