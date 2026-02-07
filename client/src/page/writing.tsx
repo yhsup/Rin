@@ -16,7 +16,6 @@ import { siteName } from "../utils/constants";
 import mermaid from 'mermaid';
 import { MarkdownEditor } from '../components/markdown_editor';
 
-// --- 发布与更新函数 ---
 async function publish({ title, alias, listed, content, summary, tags, draft, createdAt, onCompleted, showAlert }: { title: string; listed: boolean; content: string; summary: string; tags: string[]; draft: boolean; alias?: string; createdAt?: Date; onCompleted?: () => void; showAlert: ShowAlertType; }) {
   const t = i18n.t;
   const { data, error } = await client.feed.index.post({ title, alias, content, summary, tags, listed, draft, createdAt }, { headers: headersWithAuth() });
@@ -55,7 +54,6 @@ export function WritingPage({ id }: { id?: number }) {
   const [publishing, setPublishing] = useState(false);
   const { showAlert, AlertUI } = useAlert();
 
-  // --- 仅保留字体配置 ---
   const [fontFamily, setFontFamily] = useState(localStorage.getItem('rin-fontFamily') || 'Sarasa Mono SC, JetBrains Mono, monospace');
 
   const safeId = id ? Number(id) : 0;
@@ -90,16 +88,13 @@ export function WritingPage({ id }: { id?: number }) {
     }
   }, [id, setTitle, setTags, setAlias, setContent, setSummary, title, tags, alias, content, summary]);
 
-  const debouncedUpdate = useCallback(
-    _.debounce(() => {
-      mermaid.initialize({ startOnLoad: false, theme: "default" });
-      mermaid.run({ suppressErrors: true, nodes: document.querySelectorAll("pre.mermaid_default") }).then(() => {
-        mermaid.initialize({ startOnLoad: false, theme: "dark" });
-        mermaid.run({ suppressErrors: true, nodes: document.querySelectorAll("pre.mermaid_dark") });
-      });
-    }, 100),
-    []
-  );
+  const debouncedUpdate = useCallback(_.debounce(() => {
+    mermaid.initialize({ startOnLoad: false, theme: "default" });
+    mermaid.run({ suppressErrors: true, nodes: document.querySelectorAll("pre.mermaid_default") }).then(() => {
+      mermaid.initialize({ startOnLoad: false, theme: "dark" });
+      mermaid.run({ suppressErrors: true, nodes: document.querySelectorAll("pre.mermaid_dark") });
+    });
+  }, 100), []);
 
   useEffect(() => { debouncedUpdate(); }, [content, debouncedUpdate]);
 
@@ -134,24 +129,16 @@ export function WritingPage({ id }: { id?: number }) {
         <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;700&family=Zhi+Mang+Xing&display=swap" rel="stylesheet" />
         <style>
           {`
-            .vditor-reset, .toc-content, .markdown-content {
-              font-family: ${fontFamily} !important;
-              white-space: pre-wrap !important;
-              word-break: break-all;
-            }
-            /* 保持表格预览的基本样式 */
-            .toc-content table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+            .vditor-reset, .toc-content, .markdown-content { font-family: ${fontFamily} !important; white-space: pre-wrap !important; word-break: break-all; }
+            .toc-content table { border-collapse: collapse; width: 100%; margin: 16px 0; border: 1px solid #ddd; }
             .toc-content th, .toc-content td { border: 1px solid #ddd; padding: 8px; }
             .vditor-reset u, .toc-content u { text-decoration: underline; text-underline-offset: 4px; }
           `}
         </style>
       </Helmet>
-
       <div className="grid grid-cols-1 md:grid-cols-3 t-primary mt-2">
         <div className="col-span-2 pb-8">
           <div className="bg-w rounded-2xl shadow-xl shadow-light p-4">
-            
-            {/* 仅保留字体控制 */}
             <div className="flex flex-wrap gap-4 mb-3 px-3 py-2 bg-gray-50 dark:bg-zinc-800/50 rounded-lg text-xs opacity-90 border border-gray-100 dark:border-zinc-700">
                <div className="flex items-center gap-2">
                  <span>{t('fontFamily') || '字体'}:</span>
@@ -166,19 +153,9 @@ export function WritingPage({ id }: { id?: number }) {
                  </select>
                </div>
             </div>
-
             <MetaInput className="md:hidden mb-8" />
-
-            {/* MarkdownEditor 只接收 content 和 fontFamily */}
-            <MarkdownEditor 
-                key={fontFamily} 
-                content={content} 
-                setContent={setContent} 
-                height='600px'
-                fontFamily={fontFamily}
-            />
+            <MarkdownEditor key={fontFamily} content={content} setContent={setContent} height='600px' fontFamily={fontFamily} />
           </div>
-          
           <div className="md:hidden flex flex-row justify-center mt-8">
             <button onClick={publishButton} className="basis-1/2 bg-theme text-white py-4 rounded-full shadow-xl shadow-light flex flex-row justify-center items-center space-x-2">
               {publishing && <Loading type="spin" height={16} width={16} />}
@@ -186,8 +163,6 @@ export function WritingPage({ id }: { id?: number }) {
             </button>
           </div>
         </div>
-
-        {/* 侧边栏 */}
         <div className="hidden md:flex flex-col">
           <MetaInput className="bg-w rounded-2xl shadow-xl shadow-light p-4 mx-8" />
           <div className="flex flex-row justify-center mt-8">
