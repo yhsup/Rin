@@ -20,6 +20,10 @@ export function UserService() {
                     redirect_to.value = `${referer_url.protocol}//${referer_url.host}`
                     return oauth2.redirect("GitHub", { scopes: ["read:user"] })
                 })
+            // 在 callback 开始处临时加入
+                .get("/github/callback", async ({ jwt, oauth2, set, cookie: { token, redirect_to } }) => {
+                    // 临时测试代码：部署后登录，如果页面直接显示这个报错，说明新代码生效了
+                    // throw new Error("VERIFY_NEW_CODE_ACTIVE");
                 .get("/github/callback", async ({ jwt, oauth2, set, cookie: { token, redirect_to } }) => {
                     // 注意：这里删除了未使用过的 store, query, state
 
