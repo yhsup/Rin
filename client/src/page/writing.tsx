@@ -134,29 +134,52 @@ export function WritingPage({ id }: { id?: number }) {
         <style>
           {`
             :root {
-              --editor-fs: ${fontSize};
-              --editor-lh: ${lineHeight};
+              --editor-fs: ${fontSize.replace('px', '')}px;
+              --editor-lh-ratio: ${lineHeight};
+              /* 计算实际像素行高 */
+              --editor-lh-px: calc(var(--editor-fs) * var(--editor-lh-ratio));
             }
-
-            /* 修正光标：核心在于计算偏移量，防止其偏上 */
-            .monaco-editor .cursor {
-              height: var(--editor-fs) !important;
-              /* 偏移公式：(行高系数 - 1) * 字号 / 2 */
-              transform: translateY(calc((var(--editor-lh) - 1) * var(--editor-fs) / 2)) !important;
-              width: 2px !important;
-            }
-
+        
+            /* 1. 修正编辑器文字层 */
             .monaco-editor, .monaco-editor .view-line, .monaco-editor .view-line span {
               font-size: var(--editor-fs) !important;
               font-family: ${fontFamily} !important;
-              line-height: calc(var(--editor-fs) * var(--editor-lh)) !important;
+              line-height: var(--editor-lh-px) !important;
             }
-
+        
+            /* 2. 修正光标垂直位置 */
+            .monaco-editor .cursor {
+              height: var(--editor-fs) !important;
+              /* 公式：(行高 - 字号) / 2 */
+              transform: translateY(calc((var(--editor-lh-px) - var(--editor-fs)) / 2)) !important;
+              width: 2px !important;
+            }
+        
+            /* 3. 核心修复：修正选中框（高亮块）的向上偏移 */
+            /* 选中框层级和文字层级必须使用完全相同的位移逻辑 */
+            .monaco-editor .view-overlays .selected-text,
+            .monaco-editor .view-overlays .current-line {
+              height: var(--editor-lh-px) !important;
+            }
+        
+            /* 如果选中框依然偏上，通过这个补丁强制向下平移文字高度与行高差的一半 */
+            .monaco-editor .view-overlays div {
+              display: flex;
+              align-items: center;
+            }
+        
+            /* 针对 Monaco 渲染机制的微调：如果行高系数大于 1，
+               我们需要微调渲染容器的垂直位置 */
+            .monaco-editor .lines-content .view-overlays {
+                margin-top: calc((var(--editor-lh-px) - (var(--editor-fs) * 1.2)) / 4);
+            }
+        
+            /* 4. 预览区同步 */
             .toc-content, .vditor-reset, .markdown-editor textarea {
               white-space: pre-wrap !important;
               word-break: break-all;
               font-size: var(--editor-fs) !important;
-              line-height: var(--editor-lh) !important;
+              line-height: var(--editor-lh-ratio) !important;
             }
           `}
         </style>
