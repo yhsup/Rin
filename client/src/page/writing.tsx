@@ -16,7 +16,6 @@ import {siteName} from "../utils/constants";
 import mermaid from 'mermaid';
 import { MarkdownEditor } from '../components/markdown_editor';
 
-// --- 发布与更新函数保持不变 ---
 async function publish({ title, alias, listed, content, summary, tags, draft, createdAt, onCompleted, showAlert }: { title: string; listed: boolean; content: string; summary: string; tags: string[]; draft: boolean; alias?: string; createdAt?: Date; onCompleted?: () => void; showAlert: ShowAlertType; }) {
   const t = i18n.t;
   const { data, error } = await client.feed.index.post({ title, alias, content, summary, tags, listed, draft, createdAt }, { headers: headersWithAuth() });
@@ -55,10 +54,13 @@ export function WritingPage({ id }: { id?: number }) {
   const [publishing, setPublishing] = useState(false);
   const { showAlert, AlertUI } = useAlert();
 
-  // --- 字体、字号、行距控制状态 ---
   const [fontSize, setFontSize] = useState(localStorage.getItem('rin-fontSize') || '16px');
   const [fontFamily, setFontFamily] = useState(localStorage.getItem('rin-fontFamily') || 'Sarasa Mono SC, JetBrains Mono, monospace');
   const [lineHeight, setLineHeight] = useState(Number(localStorage.getItem('rin-lineHeight')) || 1.6);
+
+  // --- 核心计算：将字符串和倍数转换为 Monaco 需要的数值 ---
+  const numericFontSize = parseInt(fontSize.replace('px', ''));
+  const actualLineHeight = Math.round(numericFontSize * lineHeight);
 
   function publishButton() {
     if (publishing) return;
@@ -133,54 +135,17 @@ export function WritingPage({ id }: { id?: number }) {
         <meta property="og:site_name" content={siteName} />
         <style>
           {`
-            :root {
-              --editor-fs: ${fontSize.replace('px', '')}px;
-              --editor-lh-ratio: ${lineHeight};
-              /* 计算实际像素行高 */
-              --editor-lh-px: calc(var(--editor-fs) * var(--editor-lh-ratio));
-            }
-        
-            /* 1. 修正编辑器文字层 */
-            .monaco-editor, .monaco-editor .view-line, .monaco-editor .view-line span {
-              font-size: var(--editor-fs) !important;
-              font-family: ${fontFamily} !important;
-              line-height: var(--editor-lh-px) !important;
-            }
-        
-            /* 2. 修正光标垂直位置 */
-            .monaco-editor .cursor {
-              height: var(--editor-fs) !important;
-              /* 公式：(行高 - 字号) / 2 */
-              transform: translateY(calc((var(--editor-lh-px) - var(--editor-fs)) / 2)) !important;
-              width: 2px !important;
-            }
-        
-            /* 3. 核心修复：修正选中框（高亮块）的向上偏移 */
-            /* 选中框层级和文字层级必须使用完全相同的位移逻辑 */
-            .monaco-editor .view-overlays .selected-text,
-            .monaco-editor .view-overlays .current-line {
-              height: var(--editor-lh-px) !important;
-            }
-        
-            /* 如果选中框依然偏上，通过这个补丁强制向下平移文字高度与行高差的一半 */
-            .monaco-editor .view-overlays div {
-              display: flex;
-              align-items: center;
-            }
-        
-            /* 针对 Monaco 渲染机制的微调：如果行高系数大于 1，
-               我们需要微调渲染容器的垂直位置 */
-            .monaco-editor .lines-content .view-overlays {
-                margin-top: calc((var(--editor-lh-px) - (var(--editor-fs) * 1.2)) / 4);
-            }
-        
-            /* 4. 预览区同步 */
+            /* 1. 仅保留预览区和渲染容器的样式 */
             .toc-content, .vditor-reset, .markdown-editor textarea {
               white-space: pre-wrap !important;
               word-break: break-all;
-              font-size: var(--editor-fs) !important;
-              line-height: var(--editor-lh-ratio) !important;
+              font-size: ${fontSize} !important;
+              line-height: ${lineHeight} !important;
+              font-family: ${fontFamily} !important;
             }
+
+            /* 2. 移除所有对 .monaco-editor 内部布局（height/line-height/cursor）的强制修改 */
+            /* 因为这些现在由组件内部 options 原生计算，CSS 覆盖会导致错位 */
           `}
         </style>
       </Helmet>
@@ -189,7 +154,6 @@ export function WritingPage({ id }: { id?: number }) {
         <div className="col-span-2 pb-8">
           <div className="bg-w rounded-2xl shadow-xl shadow-light p-4">
             
-            {/* 增强型工具栏 */}
             <div className="flex flex-wrap gap-4 mb-3 px-3 py-2 bg-gray-50 dark:bg-zinc-800/50 rounded-lg text-xs opacity-80 border border-gray-100 dark:border-zinc-700">
                <div className="flex items-center gap-2">
                  <span>字号:</span>
@@ -229,12 +193,14 @@ export function WritingPage({ id }: { id?: number }) {
 
             {MetaInput({ className: "visible md:hidden mb-8" })}
 
-            {/* 通过 key 监听字号、字体、行距，任意一个改变都会触发编辑器彻底刷新，确保选中框 100% 正确 */}
             <MarkdownEditor 
                 key={`${fontSize}-${fontFamily}-${lineHeight}`} 
                 content={content} 
                 setContent={setContent} 
-                height='600px' 
+                height='600px'
+                fontSize={numericFontSize}
+                lineHeight={actualLineHeight}
+                fontFamily={fontFamily}
             />
           </div>
           
