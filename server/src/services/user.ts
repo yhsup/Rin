@@ -22,11 +22,10 @@ export function UserService() {
                 })
                 .get("/github/callback", async ({ jwt, oauth2, set, cookie: { token, redirect_to } }) => {
                     
-                    // ============= 调试断点开始 =============
-                    // 如果你看到这个报错，说明新代码已经【部署成功】了！
-                    // 测试通过后，请删掉下面这一行再重新部署。
+                    // ============= 调试断点 =============
+                    // 运行 client:check 成功后部署，登录时若看到此报错，说明部署成功
                     throw new Error("DEPLOY_SUCCESS_CHECK"); 
-                    // ============= 调试断点结束 =============
+                    // ===================================
 
                     const gh_token = await oauth2.authorize("GitHub");
                     
@@ -47,7 +46,8 @@ export function UserService() {
 
                     let finalUserId: number;
 
-                    if (existingUser) {
+                    // 使用明确的类型保护修复 TS18048
+                    if (existingUser && existingUser.id) {
                         finalUserId = existingUser.id;
                     } else {
                         const allUsers = await db.query.users.findMany();
@@ -66,7 +66,7 @@ export function UserService() {
                             .values(newProfile)
                             .returning({ insertedId: users.id });
 
-                        if (!result || result.length === 0) {
+                        if (!result || result.length === 0 || !result[0].insertedId) {
                             throw new Error('Failed to register');
                         }
                         finalUserId = result[0].insertedId;
