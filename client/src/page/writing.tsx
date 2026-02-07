@@ -32,7 +32,7 @@ export function WritingPage({ id }: { id?: number }) {
   const fontFamily = localStorage.getItem('rin-fontFamily') || 'Sarasa Mono SC, JetBrains Mono, monospace';
   const safeId = id ? Number(id) : 0;
 
-  // 定义发布函数
+  // 发布逻辑
   const doPublish = async (payload: any) => {
     const { data, error } = await client.feed.index.post(payload, { headers: headersWithAuth() });
     setPublishing(false);
@@ -45,7 +45,7 @@ export function WritingPage({ id }: { id?: number }) {
     }
   };
 
-  // 定义更新函数
+  // 更新逻辑
   const doUpdate = async (updateId: number, payload: any) => {
     const { error } = await client.feed({ id: updateId }).post(payload, { headers: headersWithAuth() });
     setPublishing(false);
@@ -56,11 +56,11 @@ export function WritingPage({ id }: { id?: number }) {
     });
   };
 
+  // 初始化数据获取
   useEffect(() => {
     if (id) {
       client.feed({ id }).get({ headers: headersWithAuth() }).then(({ data }) => {
         if (data && typeof data !== "string") {
-          // 直接赋值，不使用 prev 回调以兼容 cache setter 类型
           if (!title) setTitle(data.title || "");
           if (!tags) setTags(data.hashtags?.map(({ name }: any) => `#${name}`).join(" ") || "");
           if (!alias) setAlias(data.alias || "");
@@ -72,7 +72,7 @@ export function WritingPage({ id }: { id?: number }) {
         }
       });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]); 
 
   const debouncedUpdate = useCallback(_.debounce(() => {
@@ -82,6 +82,7 @@ export function WritingPage({ id }: { id?: number }) {
 
   useEffect(() => { debouncedUpdate(); }, [content, debouncedUpdate]);
 
+  // 使用 useMemo 稳定元数据输入组件，解决“刷新无法选择”问题
   const MetaInputUI = useMemo(() => (
     <div className="flex flex-col">
       <Input id={safeId} value={title} setValue={setTitle} placeholder={t("title")} />
@@ -91,24 +92,24 @@ export function WritingPage({ id }: { id?: number }) {
       
       <div className="select-none flex flex-row justify-between items-center mt-6 mb-2 px-4 cursor-pointer" 
            onClick={() => setDraft(!draft)}>
-        <p>{t('visible.self_only')}</p>
+        <p className="text-sm opacity-80">{t('visible.self_only')}</p>
         <Checkbox id="draft" value={draft} setValue={setDraft} placeholder={t('draft')} />
       </div>
       
       <div className="select-none flex flex-row justify-between items-center mt-6 mb-2 px-4 cursor-pointer" 
            onClick={() => setListed(!listed)}>
-        <p>{t('listed')}</p>
+        <p className="text-sm opacity-80">{t('listed')}</p>
         <Checkbox id="listed" value={listed} setValue={setListed} placeholder={t('listed')} />
       </div>
       
       <div className="select-none flex flex-row justify-between items-center mt-4 mb-2 pl-4">
-        <p className="break-keep mr-2">{t('created_at')}</p>
+        <p className="break-keep mr-2 text-sm opacity-80">{t('created_at')}</p>
         <Calendar value={createdAt} onChange={(e) => setCreatedAt(e.value || undefined)} showTime touchUI hourFormat="24" />
       </div>
     </div>
   ), [title, summary, tags, alias, draft, listed, createdAt, safeId, t, setAlias, setContent, setSummary, setTags, setTitle]);
 
-  function publishButton() {
+  const publishButtonAction = () => {
     if (publishing) return;
     const tagsplit = tags.split("#").filter((tag) => tag !== "").map((tag) => tag.trim());
     const payload = { 
@@ -124,18 +125,30 @@ export function WritingPage({ id }: { id?: number }) {
       if (!content) { showAlert(t("content.empty")); setPublishing(false); return; }
       doPublish(payload);
     }
-  }
+  };
 
   return (
     <>
       <Helmet>
         <title>{`${t('writing')} - Rin`}</title>
+        <style>
+          {`
+            .vditor-reset, .toc-content, .markdown-content { font-family: ${fontFamily} !important; }
+            .toc-content table { border-collapse: collapse; width: 100%; margin: 16px 0; border: 1px solid #ddd; }
+            .toc-content th, .toc-content td { border: 1px solid #ddd; padding: 8px; }
+          `}
+        </style>
       </Helmet>
       
-      <div className="grid grid-cols-1 md:grid-cols-3 t-primary mt-2">
-        <div className="col-span-2 pb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 t-primary mt-2 gap-4">
+        {/* 主要编辑区 */}
+        <div className="col-span-1 md:col-span-2 pb-8">
           <div className="bg-w rounded-2xl shadow-xl shadow-light p-4">
-            <div className="md:hidden mb-8">{MetaInputUI}</div>
+            {/* 移动端元数据区 */}
+            <div className="md:hidden mb-6 border-b pb-6 dark:border-zinc-800">
+              {MetaInputUI}
+            </div>
+
             <MarkdownEditor 
               key={fontFamily} 
               content={content} 
@@ -143,17 +156,34 @@ export function WritingPage({ id }: { id?: number }) {
               height='600px' 
               fontFamily={fontFamily} 
             />
+
+            {/* 移动端发布按钮 */}
+            <div className="md:hidden flex flex-row justify-center mt-8 px-4">
+              <button 
+                onClick={publishButtonAction} 
+                disabled={publishing}
+                className="w-full bg-theme text-white py-4 rounded-full shadow-xl shadow-light flex flex-row justify-center items-center space-x-2 active:scale-95 transition-transform"
+              >
+                {publishing && <Loading type="spin" height={16} width={16} />}
+                <span className="font-bold">{id !== undefined ? t('update.title') : t('publish.title')}</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        <div className="hidden md:flex flex-col">
-          <div className="bg-w rounded-2xl shadow-xl shadow-light p-4 mx-8">
+        {/* 桌面端侧边栏 */}
+        <div className="hidden md:flex flex-col sticky top-4 h-fit">
+          <div className="bg-w rounded-2xl shadow-xl shadow-light p-4 mx-4 lg:mx-8">
             {MetaInputUI}
           </div>
-          <div className="flex flex-row justify-center mt-8">
-            <button onClick={publishButton} className="basis-1/2 bg-theme text-white py-4 rounded-full shadow-xl shadow-light flex flex-row justify-center items-center space-x-2">
+          <div className="flex flex-row justify-center mt-8 px-8">
+            <button 
+              onClick={publishButtonAction} 
+              disabled={publishing}
+              className="w-full bg-theme text-white py-4 rounded-full shadow-xl shadow-light flex flex-row justify-center items-center space-x-2 hover:opacity-90 transition-opacity"
+            >
               {publishing && <Loading type="spin" height={16} width={16} />}
-              <span>{id !== undefined ? t('update.title') : t('publish.title')}</span>
+              <span className="font-bold">{id !== undefined ? t('update.title') : t('publish.title')}</span>
             </button>
           </div>
         </div>
