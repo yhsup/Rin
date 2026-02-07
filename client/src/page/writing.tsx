@@ -16,6 +16,7 @@ import { siteName } from "../utils/constants";
 import mermaid from 'mermaid';
 import { MarkdownEditor } from '../components/markdown_editor';
 
+// --- 发布与更新函数 ---
 async function publish({ title, alias, listed, content, summary, tags, draft, createdAt, onCompleted, showAlert }: { title: string; listed: boolean; content: string; summary: string; tags: string[]; draft: boolean; alias?: string; createdAt?: Date; onCompleted?: () => void; showAlert: ShowAlertType; }) {
   const t = i18n.t;
   const { data, error } = await client.feed.index.post({ title, alias, content, summary, tags, listed, draft, createdAt }, { headers: headersWithAuth() });
@@ -54,7 +55,7 @@ export function WritingPage({ id }: { id?: number }) {
   const [publishing, setPublishing] = useState(false);
   const { showAlert, AlertUI } = useAlert();
 
-  // --- 仅保留字体状态 ---
+  // --- 仅保留字体配置 ---
   const [fontFamily, setFontFamily] = useState(localStorage.getItem('rin-fontFamily') || 'Sarasa Mono SC, JetBrains Mono, monospace');
 
   const safeId = id ? Number(id) : 0;
@@ -138,11 +139,10 @@ export function WritingPage({ id }: { id?: number }) {
               white-space: pre-wrap !important;
               word-break: break-all;
             }
+            /* 保持表格预览的基本样式 */
+            .toc-content table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+            .toc-content th, .toc-content td { border: 1px solid #ddd; padding: 8px; }
             .vditor-reset u, .toc-content u { text-decoration: underline; text-underline-offset: 4px; }
-            .vditor-reset sup, .toc-content sup { font-size: 0.75em; vertical-align: super; line-height: 0; }
-            .vditor-reset sub, .toc-content sub { font-size: 0.75em; vertical-align: sub; line-height: 0; }
-            .vditor-reset del, .toc-content del { text-decoration: line-through; opacity: 0.6; }
-            .monaco-editor .view-line { transform: none !important; margin-top: 0 !important; }
           `}
         </style>
       </Helmet>
@@ -151,6 +151,7 @@ export function WritingPage({ id }: { id?: number }) {
         <div className="col-span-2 pb-8">
           <div className="bg-w rounded-2xl shadow-xl shadow-light p-4">
             
+            {/* 仅保留字体控制 */}
             <div className="flex flex-wrap gap-4 mb-3 px-3 py-2 bg-gray-50 dark:bg-zinc-800/50 rounded-lg text-xs opacity-90 border border-gray-100 dark:border-zinc-700">
                <div className="flex items-center gap-2">
                  <span>{t('fontFamily') || '字体'}:</span>
@@ -168,8 +169,9 @@ export function WritingPage({ id }: { id?: number }) {
 
             <MetaInput className="md:hidden mb-8" />
 
+            {/* MarkdownEditor 只接收 content 和 fontFamily */}
             <MarkdownEditor 
-                key={`${fontFamily}`} 
+                key={fontFamily} 
                 content={content} 
                 setContent={setContent} 
                 height='600px'
@@ -185,6 +187,7 @@ export function WritingPage({ id }: { id?: number }) {
           </div>
         </div>
 
+        {/* 侧边栏 */}
         <div className="hidden md:flex flex-col">
           <MetaInput className="bg-w rounded-2xl shadow-xl shadow-light p-4 mx-8" />
           <div className="flex flex-row justify-center mt-8">
