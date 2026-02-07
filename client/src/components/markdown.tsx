@@ -40,27 +40,32 @@ const isMarkdownImageLinkAtEnd = (text: string) => {
   return false;
 };
 
-// --- 样式解析补丁：强行修正 display 属性 ---
+// --- 样式解析补丁：处理字体映射与布局修正 ---
 const parseInlineStyle = (style: any): React.CSSProperties => {
   if (typeof style !== 'string') return style || {};
   const styleObj: any = {};
+  
   style.split(';').forEach(rule => {
     const [key, value] = rule.split(':');
     if (key && value) {
       const camelKey = key.trim().replace(/-([a-z])/g, g => g[1].toUpperCase());
-      let finalValue = value.trim().replace(/&quot;/g, '"');
+      let finalValue = value.trim().replace(/&quot;/g, '').replace(/"/g, '');
       
-      // 核心修正：如果检测到 inline，强制改为 inline-block 以支持行高和字号排版
-      if (camelKey === 'display' && finalValue === 'inline') {
-        finalValue = 'inline-block';
+      // 1. 字体强制映射 (处理 Zhi Mang Xing 等)
+      if (camelKey === 'fontFamily') {
+        if (finalValue.includes('Zhi Mang Xing')) finalValue = "'Zhi Mang Xing', cursive";
+        else if (finalValue.includes('Ma Shan Zheng')) finalValue = "'Ma Shan Zheng', cursive";
+        else if (finalValue.includes('Noto Serif SC')) finalValue = "'Noto Serif SC', serif";
       }
+
+      // 2. 布局修正：如果有行高、字号或特定字体，强制 inline-block
       styleObj[camelKey] = finalValue;
     }
   });
-  
-  // 兜底逻辑：如果样式中有字号或行高，但没有 display，补上 inline-block
-  if ((styleObj.fontSize || styleObj.lineHeight) && !styleObj.display) {
+
+  if (styleObj.fontSize || styleObj.lineHeight || styleObj.fontFamily) {
     styleObj.display = 'inline-block';
+    styleObj.maxWidth = '100%';
   }
   
   return styleObj;
@@ -107,17 +112,10 @@ export function Markdown({ content }: { content: string }) {
           line-height: 1.6;
         }
 
-        /* 强制覆盖来自 HTML 的 display: inline，确保行高生效 */
-        .toc-content span[style*="font-size"], 
-        .toc-content span[style*="line-height"],
-        .toc-content span[style*="font-family"] {
-          display: inline-block !important;
-          max-width: 100%;
+        /* 基础样式兜底 */
+        .toc-content p {
+          margin-bottom: 0.5em;
         }
-
-        [style*="Zhi Mang Xing"] { font-family: 'Zhi Mang Xing', cursive !important; }
-        [style*="Noto Serif SC"] { font-family: 'Noto Serif SC', serif !important; }
-        [style*="Ma Shan Zheng"] { font-family: 'Ma Shan Zheng', cursive !important; }
       `}</style>
 
       <ReactMarkdown
@@ -130,8 +128,7 @@ export function Markdown({ content }: { content: string }) {
             return <p style={parseInlineStyle(style)} className="my-2" {...props}>{children}</p>;
           },
           span({ children, style, node, ...props }) {
-            const s = parseInlineStyle(style);
-            return <span style={s} {...props}>{children}</span>;
+            return <span style={parseInlineStyle(style)} {...props}>{children}</span>;
           },
           div({ children, style, node, ...props }) {
             return <div style={parseInlineStyle(style)} {...props}>{children}</div>;
