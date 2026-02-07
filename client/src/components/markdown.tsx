@@ -6,6 +6,7 @@ import { base16AteliersulphurpoolLight, vscDarkPlus } from "react-syntax-highlig
 import rehypeKatex from "rehype-katex";
 import rehypeRaw from "rehype-raw";
 import gfm from "remark-gfm";
+import remarkBreaks from "remark-breaks"; // 1. 引入插件
 import remarkMermaid from "../remark/remarkMermaid";
 import { remarkAlert } from "remark-github-blockquote-alert";
 import remarkMath from "remark-math";
@@ -26,15 +27,23 @@ export function Markdown({ content }: { content: string }) {
     <div className="markdown-render-container">
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;700&family=Zhi+Mang+Xing&display=swap');
-        .toc-content { word-break: break-word; line-height: 1.6; }
+        /* 核心修改：white-space: pre-wrap 确保换行符被渲染，line-height 稍微调大提升阅读感 */
+        .toc-content { 
+          word-break: break-word; 
+          line-height: 1.7; 
+          white-space: pre-wrap; 
+        }
         .toc-content table { border-collapse: collapse; width: 100%; margin: 1rem 0; display: table !important; }
         .toc-content th, .toc-content td { border: 1px solid #ddd; padding: 8px; }
         .aspect-video { aspect-ratio: 16 / 9; width: 100%; background: #000; border-radius: 0.75rem; overflow: hidden; }
+        /* 确保段落之间有自然的间距 */
+        .toc-content p { margin-bottom: 0.5rem; }
       `}</style>
 
       <ReactMarkdown
         className="toc-content dark:text-neutral-300"
-        remarkPlugins={[gfm, remarkMermaid, remarkMath, remarkAlert]}
+        // 2. 将 remarkBreaks 放入插件列表
+        remarkPlugins={[gfm, remarkBreaks, remarkMermaid, remarkMath, remarkAlert]}
         rehypePlugins={[rehypeKatex, rehypeRaw]}
         components={{
           table: ({ node, ...props }) => <div className="overflow-x-auto"><table {...props} /></div>,
@@ -69,10 +78,9 @@ export function Markdown({ content }: { content: string }) {
               );
             }
 
-            // 3. Bilibili 嵌入 (已删除无效注入代码，保留纯净链接和归属链接)
+            // 3. Bilibili 嵌入
             if (href?.includes('bilibili.com/video/')) {
               const bvid = href.split('video/')[1]?.split('/')[0]?.split('?')[0];
-              // 使用最基础的嵌入 URL
               const biliSrc = `//player.bilibili.com/player.html?bvid=${bvid}&page=1&danmaku=0`;
               return (
                 <div className="my-4">
@@ -83,7 +91,6 @@ export function Markdown({ content }: { content: string }) {
                       allowFullScreen 
                     ></iframe>
                   </div>
-                  {/* 强化归属链接，方便用户跳转至高清版 */}
                   <a 
                     href={href} 
                     target="_blank" 
