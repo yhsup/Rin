@@ -11,32 +11,6 @@ import { extractImage } from "../utils/image";
 import { generateAISummary } from "../utils/ai";
 import { bindTagToPost } from "./tag";
 
-/**
- * 核心逻辑：动态提取第一句话作为摘要
- */
-function getFirstSentence(content: string): string {
-    if (!content) return "";
-    
-    // 1. 简单清理：处理图片和表格占位符，避免摘要出现乱码
-    let cleaned = content
-        .replace(/!\[.*?\]\(.*?\)/g, '[图片]')
-        .replace(/(\n|^)\|(.+?)\|[\s\S]+?(\n\n|$)/g, '$1[表格]$3');
-
-    // 2. 移除 Markdown 符号并压缩空白字符
-    cleaned = cleaned
-        .replace(/[#*`~>]/g, '')
-        .replace(/\s+/g, ' ')
-        .trim();
-
-    if (!cleaned) return "";
-
-    // 3. 正则匹配：截取到第一个句号、问号或感叹号（支持中英文）
-    const match = cleaned.match(/^.*?[。\.？！?!]/);
-    
-    // 如果匹配成功则返回第一句，否则截取前 100 字兜底
-    return match ? match[0].trim() : (cleaned.length > 100 ? cleaned.slice(0, 100) : cleaned);
-}
-
 export function FeedService() {
     const db: DB = getDB();
     return new Elysia({ aot: false })
@@ -87,10 +61,10 @@ export function FeedService() {
                         offset: page_num * limit_num,
                         limit: limit_num + 1,
                     })).map(({ content, hashtags, summary, ...other }) => {
+                        // 提取首图
                         const avatar = extractImage(content);
                         return {
-                            // 修改点：动态提取第一句
-                            summary: summary.length > 0 ? summary : getFirstSentence(content),
+                            summary: summary.length > 0 ? summary : content.length > 100 ? content.slice(0, 100) : content,
                             hashtags: hashtags.map(({ hashtag }) => hashtag),
                             avatar,
                             ...other
@@ -133,6 +107,7 @@ export function FeedService() {
                         set.status = 403;
                         return 'Permission denied';
                     }
+                    // input check
                     if (!title) {
                         set.status = 400;
                         return 'Title is required';
@@ -142,6 +117,7 @@ export function FeedService() {
                         return 'Content is required';
                     }
 
+                    // check exist
                     const exist = await db.query.feeds.findFirst({
                         where: or(eq(feeds.title, title), eq(feeds.content, content))
                     });
@@ -151,6 +127,7 @@ export function FeedService() {
                     }
                     const date = createdAt ? new Date(createdAt) : new Date();
 
+                    // Generate AI summary if enabled and not a draft
                     let ai_summary = "";
                     if (!draft) {
                         const generatedSummary = await generateAISummary(content);
@@ -214,6 +191,7 @@ export function FeedService() {
                         set.status = 404;
                         return 'Not found';
                     }
+                    // permission check
                     if (feed.draft && feed.uid !== uid && !admin) {
                         set.status = 403;
                         return 'Permission denied';
@@ -222,6 +200,8 @@ export function FeedService() {
                     const { hashtags, ...other } = feed;
                     const hashtags_flatten = hashtags.map((f) => f.hashtag);
 
+
+                    // update visits
                     const config = ClientConfig()
                     const enableVisit = await config.getOrDefault('counter.enabled', true);
                     let pv = 0;
@@ -280,9 +260,13 @@ export function FeedService() {
                     ) {
                         if (feed) {
                             const hashtags_flatten = feed.hashtags.map((f: any) => f.hashtag);
-                            // 修改点：相邻文章也动态生成摘要
-                            const summary = feed.summary.length > 0 ? feed.summary : getFirstSentence(feed.content);
-                            
+                            const summary =
+                                feed.summary.length > 0
+                                    ? feed.summary
+                                    : feed.content.length > 50
+                                        ? feed.content.slice(0, 50)
+                                        : feed.content;
+                            // NOTE: feed.id is adjacent feed, id_num is current feed id
                             const cacheKey = `${feed.id}_${feedDirection}_${id_num}`;
                             const cacheData = {
                                 id: feed.id,
@@ -298,6 +282,7 @@ export function FeedService() {
                         return null;
                     }
                     const getPreviousFeed = async () => {
+                        // It should return an array with only one data item
                         const previousFeedCached = await cache.getBySuffix(
                             `previous_feed_${id_num}`,
                         );
@@ -387,6 +372,7 @@ export function FeedService() {
                         return 'Permission denied';
                     }
 
+                    // Generate AI summary if content changed and not a draft
                     let ai_summary: string | undefined = undefined;
                     const contentChanged = content && content !== feed.content;
                     const isDraft = draft !== undefined ? draft : (feed.draft === 1);
@@ -396,6 +382,7 @@ export function FeedService() {
                             ai_summary = generatedSummary;
                         }
                     }
+                    // Also generate if publishing a draft for the first time
                     if (!isDraft && feed.draft === 1 && !feed.ai_summary) {
                         const contentToSummarize = content || feed.content;
                         const generatedSummary = await generateAISummary(contentToSummarize);
@@ -520,8 +507,7 @@ export function FeedService() {
                 orderBy: [desc(feeds.createdAt), desc(feeds.updatedAt)],
             }))).map(({ content, hashtags, summary, ...other }) => {
                 return {
-                    // 修改点：搜索结果也动态提取第一句
-                    summary: summary.length > 0 ? summary : getFirstSentence(content),
+                    summary: summary.length > 0 ? summary : content.length > 100 ? content.slice(0, 100) : content,
                     hashtags: hashtags.map(({ hashtag }) => hashtag),
                     ...other
                 }
@@ -574,7 +560,7 @@ export function FeedService() {
                 const draft = item?.['wp:status'] !== 'publish';
                 const contentHtml = item?.['content:encoded'];
                 const content = html2md(contentHtml);
-                const summary = getFirstSentence(content);
+                const summary = content.length > 100 ? content.slice(0, 100) : content;
                 let tags = item?.['category'];
                 if (tags && Array.isArray(tags)) {
                     tags = tags.map((tag: any) => tag + '');
@@ -635,6 +621,7 @@ export function FeedService() {
             })
         })
 }
+
 
 type FeedItem = {
     title: string;
