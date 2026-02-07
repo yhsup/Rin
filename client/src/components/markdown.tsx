@@ -14,7 +14,6 @@ import { remarkAlert } from "remark-github-blockquote-alert";
 import remarkMath from "remark-math";
 import Lightbox, { SlideImage } from "yet-another-react-lightbox";
 import Counter from "yet-another-react-lightbox/plugins/counter";
-import Download from "yet-another-react-lightbox/plugins/download";
 import Zoom from "yet-another-react-lightbox/plugins/zoom";
 import "yet-another-react-lightbox/styles.css";
 import { useColorMode } from "../utils/darkModeUtils";
