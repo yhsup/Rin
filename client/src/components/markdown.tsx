@@ -31,11 +31,11 @@ export function Markdown({ content }: { content: string }) {
         .toc-content { 
           word-break: break-word; 
           line-height: 1.7; 
-          /* 1. 设置为 normal，防止与插件冲突导致多出一行 */
+          /* 必须为 normal，因为换行已由 remark-breaks 插件生成的 <br/> 处理 */
           white-space: normal; 
         }
 
-        /* 2. 修复表格空行：禁用表格内部插件生成的额外换行显示 */
+        /* 修复表格：隐藏表格内部由插件生成的额外换行符，解决表格上方空行问题 */
         .toc-content table br {
           display: none;
         }
@@ -43,18 +43,23 @@ export function Markdown({ content }: { content: string }) {
         .toc-content table { 
           border-collapse: collapse; 
           width: 100%; 
-          margin: 1rem 0; 
+          margin: 1.5rem 0; 
           display: table !important; 
-          line-height: 1.5;
         }
         
         .toc-content th, .toc-content td { 
           border: 1px solid #ddd; 
-          padding: 8px; 
+          padding: 10px; 
+          line-height: 1.5;
         }
 
+        .toc-content th {
+          background-color: rgba(0,0,0,0.02);
+        }
+
+        /* 段落间距：确保即使不打双回车，段落之间也有呼吸感 */
         .toc-content p { 
-          margin-bottom: 0.8rem; 
+          margin-bottom: 1.1rem; 
         }
 
         .aspect-video { aspect-ratio: 16 / 9; width: 100%; background: #000; border-radius: 0.75rem; overflow: hidden; }
@@ -62,6 +67,7 @@ export function Markdown({ content }: { content: string }) {
 
       <ReactMarkdown
         className="toc-content dark:text-neutral-300"
+        // 核心插件：gfm 处理表格，remarkBreaks 处理回车即换行
         remarkPlugins={[gfm, remarkBreaks, remarkMermaid, remarkMath, remarkAlert]}
         rehypePlugins={[rehypeKatex, rehypeRaw]}
         components={{
@@ -70,6 +76,7 @@ export function Markdown({ content }: { content: string }) {
           td: ({ node, ...props }) => <td className="border" {...props} />,
           
           a: ({ node, children, href, ...props }: any) => {
+            // 原生视频处理
             if (href?.match(/\.(mp4|webm|ogg)$/i)) {
               return (
                 <div className="my-4 text-center">
@@ -81,6 +88,7 @@ export function Markdown({ content }: { content: string }) {
               );
             }
 
+            // YouTube 嵌入
             if (href?.includes('youtube.com/watch') || href?.includes('youtu.be/')) {
               const videoId = href.includes('v=') ? href.split('v=')[1]?.split('&')[0] : href.split('/').pop();
               return (
@@ -95,6 +103,7 @@ export function Markdown({ content }: { content: string }) {
               );
             }
 
+            // Bilibili 嵌入
             if (href?.includes('bilibili.com/video/')) {
               const bvid = href.split('video/')[1]?.split('/')[0]?.split('?')[0];
               const biliSrc = `//player.bilibili.com/player.html?bvid=${bvid}&page=1&danmaku=0`;
