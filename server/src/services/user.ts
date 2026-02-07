@@ -45,6 +45,79 @@ export function UserService() {
 
                     let finalUserId: number;
 
+                    // 使用“熔断”式检查，彻底解决 TS18048
+                    if (existingUser !== undefined && existingUser !== null) {
+                        // 老用户：直接拿 ID，没有任何 update 语句
+                        finalUserId = existingUser.id;
+                    } else {
+                        // 新用户或锁定逻辑
+                        const allUsers = await db.query.users.findMany();
+                        if (allUsers && allUsers.length > 0) {
+                            throw new Error('系统已锁定：仅允许管理员登录。');
+                        }
+
+                        const result = await db.insert(users)
+                            .values({
+                                openid: githubId,
+                                username: githubUser.name || githubUser.login,
+                                avatar: githubUser.avatar_url,
+                                permission: 1 
+                            })
+                            .returning({ insertedId: users.id });
+
+                        if (!result?.[0]?.insertedId) {
+                            throw new Error('Failed to register: No ID returned');
+                        }
+                        finalUserId = result[0].insertedId;
+                    }
+
+                    token.set({
+                        value: await jwt.sign({ id: finalUserId }),
+                        expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
+                        path: '/',
+                    });
+
+                    const redirect_host = redirect_to.value || ""
+                    set.headers = { 'Content-Type': 'text/html' }
+                    set.redirect = `${redirect_host}/callback?token=${token.value}`
+                }, {
+                    query: t.Object({
+                        state: t.String(),
+                        code: t.String(),
+                    })
+                })
+                .get('/profile', async ({ set, uid }) => {
+                    if (!uid) {
+                        set.status = 403
+                        return 'Permission denied'
+                    }
+                    const uid_num = parseInt(uid)
+                    const user = await db.query.users.findFirst({ where: eq(users.id, uid_num) })
+                    if (!user) {
+                        set.status = 404
+                        return 'User not found'
+                    }
+                    return {
+                        id: user.id,
+                        username: user.username,
+                        avatar: user.avatar,
+                        permission: user.permission === 1,
+                        createdAt: user.createdAt,
+                        updatedAt: user.updatedAt,
+                    }
+                })
+        )
+}                    });
+                    
+                    const githubUser: any = await response.json();
+                    const githubId = githubUser.id.toString();
+
+                    const existingUser = await db.query.users.findFirst({ 
+                        where: eq(users.openid, githubId) 
+                    });
+
+                    let finalUserId: number;
+
                     if (existingUser) {
                         // 使用强制断言访问 ID，因为 if(existingUser) 已经保证了其存在
                         finalUserId = existingUser.id;
