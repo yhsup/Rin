@@ -20,12 +20,13 @@ export function UserService() {
                     redirect_to.value = `${referer_url.protocol}//${referer_url.host}`
                     return oauth2.redirect("GitHub", { scopes: ["read:user"] })
                 })
-            // 在 callback 开始处临时加入
                 .get("/github/callback", async ({ jwt, oauth2, set, cookie: { token, redirect_to } }) => {
-                    // 临时测试代码：部署后登录，如果页面直接显示这个报错，说明新代码生效了
-                    // throw new Error("VERIFY_NEW_CODE_ACTIVE");
-                .get("/github/callback", async ({ jwt, oauth2, set, cookie: { token, redirect_to } }) => {
-                    // 注意：这里删除了未使用过的 store, query, state
+                    
+                    // ============= 调试断点开始 =============
+                    // 如果你看到这个报错，说明新代码已经【部署成功】了！
+                    // 测试通过后，请删掉下面这一行再重新部署。
+                    throw new Error("DEPLOY_SUCCESS_CHECK"); 
+                    // ============= 调试断点结束 =============
 
                     const gh_token = await oauth2.authorize("GitHub");
                     
@@ -51,7 +52,7 @@ export function UserService() {
                     } else {
                         const allUsers = await db.query.users.findMany();
                         if (allUsers && allUsers.length > 0) {
-                            throw new Error('系统已锁定：仅允许管理员登录，禁止新账号注册。');
+                            throw new Error('系统已锁定：仅允许管理员登录。');
                         }
 
                         const newProfile = {
@@ -79,9 +80,7 @@ export function UserService() {
 
                     const redirect_host = redirect_to.value || ""
                     const redirect_url = (`${redirect_host}/callback?token=${token.value}`);
-                    set.headers = {
-                        'Content-Type': 'text/html',
-                    }
+                    set.headers = { 'Content-Type': 'text/html' }
                     set.redirect = redirect_url
                 }, {
                     query: t.Object({
