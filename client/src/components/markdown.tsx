@@ -18,7 +18,6 @@ import Zoom from "yet-another-react-lightbox/plugins/zoom";
 import "yet-another-react-lightbox/styles.css";
 import { useColorMode } from "../utils/darkModeUtils";
 
-// --- 工具函数：计算节点前的换行符数量 ---
 const countNewlinesBeforeNode = (text: string, offset: number) => {
   let newlinesBefore = 0;
   for (let i = offset - 1; i >= 0; i--) {
@@ -31,7 +30,6 @@ const countNewlinesBeforeNode = (text: string, offset: number) => {
   return newlinesBefore;
 };
 
-// --- 工具函数：判断是否是行末的图片链接 ---
 const isMarkdownImageLinkAtEnd = (text: string) => {
   const trimmed = text.trim();
   const match = trimmed.match(/(.*)(!\\[.*?\\]\\(.*?\\))$/s);
@@ -42,7 +40,7 @@ const isMarkdownImageLinkAtEnd = (text: string) => {
   return false;
 };
 
-// --- 核心补丁：将 HTML Style 字符串转换为 React 对象 ---
+// --- 样式解析补丁：强行修正 display 属性 ---
 const parseInlineStyle = (style: any): React.CSSProperties => {
   if (typeof style !== 'string') return style || {};
   const styleObj: any = {};
@@ -50,9 +48,21 @@ const parseInlineStyle = (style: any): React.CSSProperties => {
     const [key, value] = rule.split(':');
     if (key && value) {
       const camelKey = key.trim().replace(/-([a-z])/g, g => g[1].toUpperCase());
-      styleObj[camelKey] = value.trim().replace(/&quot;/g, '"');
+      let finalValue = value.trim().replace(/&quot;/g, '"');
+      
+      // 核心修正：如果检测到 inline，强制改为 inline-block 以支持行高和字号排版
+      if (camelKey === 'display' && finalValue === 'inline') {
+        finalValue = 'inline-block';
+      }
+      styleObj[camelKey] = finalValue;
     }
   });
+  
+  // 兜底逻辑：如果样式中有字号或行高，但没有 display，补上 inline-block
+  if ((styleObj.fontSize || styleObj.lineHeight) && !styleObj.display) {
+    styleObj.display = 'inline-block';
+  }
+  
   return styleObj;
 };
 
@@ -94,12 +104,20 @@ export function Markdown({ content }: { content: string }) {
         .toc-content {
           white-space: pre-wrap !important;
           word-break: break-word;
+          line-height: 1.6;
         }
 
-        /* 字体补丁：确保 Google Fonts 优先级最高 */
-        [style*="Ma Shan Zheng"] { font-family: 'Ma Shan Zheng', cursive !important; }
+        /* 强制覆盖来自 HTML 的 display: inline，确保行高生效 */
+        .toc-content span[style*="font-size"], 
+        .toc-content span[style*="line-height"],
+        .toc-content span[style*="font-family"] {
+          display: inline-block !important;
+          max-width: 100%;
+        }
+
         [style*="Zhi Mang Xing"] { font-family: 'Zhi Mang Xing', cursive !important; }
         [style*="Noto Serif SC"] { font-family: 'Noto Serif SC', serif !important; }
+        [style*="Ma Shan Zheng"] { font-family: 'Ma Shan Zheng', cursive !important; }
       `}</style>
 
       <ReactMarkdown
@@ -108,29 +126,16 @@ export function Markdown({ content }: { content: string }) {
         children={content}
         rehypePlugins={[rehypeKatex, rehypeRaw]}
         components={{
-          // 样式透传核心组件
-          p({ children, style, ...props }) {
+          p({ children, style, node, ...props }) {
             return <p style={parseInlineStyle(style)} className="my-2" {...props}>{children}</p>;
           },
-          span({ children, style, ...props }) {
+          span({ children, style, node, ...props }) {
             const s = parseInlineStyle(style);
-            return (
-              <span 
-                style={{
-                  ...s,
-                  display: (s.fontSize || s.lineHeight) ? 'inline-block' : 'inline',
-                  maxWidth: '100%'
-                }} 
-                {...props}
-              >
-                {children}
-              </span>
-            );
+            return <span style={s} {...props}>{children}</span>;
           },
-          div({ children, style, ...props }) {
+          div({ children, style, node, ...props }) {
             return <div style={parseInlineStyle(style)} {...props}>{children}</div>;
           },
-          // 图片处理
           img({ node, src, ...props }) {
             const offset = node?.position?.start.offset ?? 0;
             const previousContent = content.slice(0, offset);
@@ -149,7 +154,6 @@ export function Markdown({ content }: { content: string }) {
               </span>
             );
           },
-          // 代码高亮
           code(props) {
             const [copied, setCopied] = React.useState(false);
             const { children, className, node, ...rest } = props;
@@ -184,7 +188,6 @@ export function Markdown({ content }: { content: string }) {
             }
             return <code {...rest} className={`bg-[#eff1f3] dark:bg-[#4a5061] px-[4px] rounded-md`} style={{...codeStyle, fontSize: "13px"}}>{children}</code>;
           },
-          // 其他基础 HTML 标签
           blockquote: ({children, ...props}) => <blockquote className="border-l-4 border-gray-300 pl-4 italic" {...props}>{children}</blockquote>,
           a: ({children, ...props}) => <a className="text-[#0686c8] hover:underline" {...props}>{children}</a>,
           ul: ({children, className, ...props}) => <ul className={className?.includes("contains-task-list") ? "list-none pl-5" : "list-disc pl-5 mt-2"} {...props}>{children}</ul>,
