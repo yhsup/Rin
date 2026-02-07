@@ -39,8 +39,17 @@ export function Markdown({ content }: { content: string }) {
         .toc-content span[style*="background-color"] { padding: 0 4px; border-radius: 3px; }
 
         [style*="Ma Shan Zheng"] { font-family: 'Ma Shan Zheng', cursive !important; }
-        [style*="Zhi Mand Xing"] { font-family: 'Zhi Mang Xing', cursive !important; }
+        [style*="Zhi Mang Xing"] { font-family: 'Zhi Mang Xing', cursive !important; }
         [style*="Noto Serif SC"] { font-family: 'Noto Serif SC', serif !important; }
+
+        /* 视频容器比例控制 */
+        .aspect-video {
+          aspect-ratio: 16 / 9;
+          width: 100%;
+          background: #000;
+          border-radius: 0.75rem;
+          overflow: hidden;
+        }
       `}</style>
 
       <ReactMarkdown
@@ -51,6 +60,54 @@ export function Markdown({ content }: { content: string }) {
           table: ({ node, ...props }) => <div className="overflow-x-auto"><table {...props} /></div>,
           th: ({ node, ...props }) => <th className="bg-gray-100 dark:bg-zinc-800 border font-bold" {...props} />,
           td: ({ node, ...props }) => <td className="border" {...props} />,
+          
+          // 核心：视频链接解析逻辑
+          a: ({ node, children, href, ...props }: any) => {
+            // 1. 原生视频文件 (mp4, webm, ogg)
+            if (href?.match(/\.(mp4|webm|ogg)$/i)) {
+              return (
+                <div className="my-4">
+                  <video src={href} controls className="w-full rounded-xl shadow-lg shadow-light">
+                    您的浏览器不支持视频播放。
+                  </video>
+                  <p className="text-[10px] text-center opacity-40 mt-1 italic">{String(children)}</p>
+                </div>
+              );
+            }
+
+            // 2. YouTube
+            if (href?.includes('youtube.com/watch') || href?.includes('youtu.be/')) {
+              const videoId = href.includes('v=') ? href.split('v=')[1]?.split('&')[0] : href.split('/').pop();
+              return (
+                <div className="aspect-video my-4 shadow-xl shadow-light">
+                  <iframe
+                    className="w-full h-full"
+                    src={`https://www.youtube.com/embed/${videoId}`}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  ></iframe>
+                </div>
+              );
+            }
+
+            // 3. Bilibili
+            if (href?.includes('bilibili.com/video/')) {
+              const bvid = href.split('video/')[1]?.split('/')[0]?.split('?')[0];
+              return (
+                <div className="aspect-video my-4 shadow-xl shadow-light">
+                  <iframe
+                    className="w-full h-full"
+                    src={`//player.bilibili.com/player.html?bvid=${bvid}&page=1&high_quality=1&danmaku=0`}
+                    allowFullScreen
+                    scrolling="no"
+                  ></iframe>
+                </div>
+              );
+            }
+
+            return <a href={href} {...props} className="text-theme hover:underline">{children}</a>;
+          },
+
           code({ children, className, node, ...rest }: any) {
             const match = /language-(\w+)/.exec(className || "");
             return match ? (
