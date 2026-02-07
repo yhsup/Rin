@@ -77,14 +77,6 @@ export function WritingPage({ id }: { id?: number }) {
   const [fontSize, setFontSize] = useState(localStorage.getItem('rin-fontSize') || '14px');
   const [fontFamily, setFontFamily] = useState(localStorage.getItem('rin-fontFamily') || 'Sarasa Mono SC, JetBrains Mono, monospace');
 
-  // --- 核心修复：当字号改变时，强制触发 Monaco 引擎重绘 ---
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      window.dispatchEvent(new Event('resize'));
-    }, 200); // 延迟 200ms 等待 CSS 变量注入生效
-    return () => clearTimeout(timer);
-  }, [fontSize, fontFamily]);
-
   function publishButton() {
     if (publishing) return;
     const tagsplit = tags.split("#").filter((tag) => tag !== "").map((tag) => tag.trim()) || [];
@@ -114,7 +106,6 @@ export function WritingPage({ id }: { id?: number }) {
         }
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const debouncedUpdate = useCallback(
@@ -157,44 +148,27 @@ export function WritingPage({ id }: { id?: number }) {
     <>
       <Helmet>
         <title>{`${t('writing')} - ${process.env.NAME}`}</title>
-        {/* 使用 siteName 确保通过 TS 检查 */}
         <meta property="og:site_name" content={siteName} />
         <style>
           {`
-            :root {
-              --editor-fs: ${fontSize};
-              --editor-lh: calc(${fontSize.replace('px', '')} * 1.5px);
-            }
-      
-            .monaco-editor {
-              --vscode-editor-font-size: var(--editor-fs) !important;
-              --vscode-editor-font-family: ${fontFamily} !important;
-            }
-      
-            /* 修正光标大小和位置：高度跟随字体，垂直偏移对齐文字 */
-            .monaco-editor .cursor {
-              height: var(--editor-fs) !important;
-              transform: translateY(calc((var(--editor-lh) - var(--editor-fs)) / 2)) !important;
-              width: 2px !important;
-            }
-      
-            /* 强制对齐文字层、选中背景、当前行背景 */
-            .monaco-editor .view-line,
-            .monaco-editor .view-overlays .current-line,
-            .monaco-editor .view-overlays .selected-text,
-            .monaco-editor .view-lines {
-              height: var(--editor-lh) !important;
-              line-height: var(--editor-lh) !important;
-            }
-      
-            /* 修正文字渲染层字体继承 */
-            .monaco-editor .view-line span {
-              font-size: var(--editor-fs) !important;
+            /* 1. 修复编辑器内部选中框与字体的物理对齐 */
+            .monaco-editor, .monaco-editor .view-line, .monaco-editor .view-line span {
+              font-size: ${fontSize} !important;
               font-family: ${fontFamily} !important;
+              line-height: 1.5 !important;
             }
-      
-            .monaco-editor .selected-text {
-              opacity: 0.4 !important;
+
+            /* 2. 修正光标大小 */
+            .monaco-editor .cursor {
+              height: ${fontSize} !important;
+            }
+
+            /* 3. 核心：修复预览页面不换行的问题 */
+            .toc-content, .vditor-reset, .markdown-editor textarea {
+              white-space: pre-wrap !important;
+              word-break: break-all;
+              font-size: ${fontSize} !important;
+              font-family: ${fontFamily} !important;
             }
           `}
         </style>
@@ -204,6 +178,7 @@ export function WritingPage({ id }: { id?: number }) {
         <div className="col-span-2 pb-8">
           <div className="bg-w rounded-2xl shadow-xl shadow-light p-4">
             
+            {/* 字体工具栏 */}
             <div className="flex flex-row gap-4 mb-3 px-2 py-1 bg-gray-50 dark:bg-zinc-800/50 rounded-lg text-xs opacity-70 border border-gray-100 dark:border-zinc-700">
                <div className="flex items-center gap-1">
                  <span>字号:</span>
@@ -223,15 +198,22 @@ export function WritingPage({ id }: { id?: number }) {
                    className="bg-transparent border-none outline-none cursor-pointer text-theme font-bold"
                  >
                    <option value="Sarasa Mono SC, JetBrains Mono, monospace">更纱/JB Mono</option>
-                   <option value="'Inter', system-ui, sans-serif">无衬线 (Inter)</option>
                    <option value="'Noto Serif SC', serif">衬线 (宋体)</option>
-                   <option value="Consolas, 'Courier New', monospace">Consolas</option>
+                   <option value="system-ui, sans-serif">无衬线</option>
+                   <option value="Consolas, monospace">Consolas</option>
                  </select>
                </div>
             </div>
 
             {MetaInput({ className: "visible md:hidden mb-8" })}
-            <MarkdownEditor content={content} setContent={setContent} height='600px' />
+
+            {/* 💡 关键：通过 key={fontSize} 强制 React 在字号变化时重新渲染编辑器 */}
+            <MarkdownEditor 
+                key={`${fontSize}-${fontFamily}`} 
+                content={content} 
+                setContent={setContent} 
+                height='600px' 
+            />
           </div>
           
           <div className="visible md:hidden flex flex-row justify-center mt-8">
