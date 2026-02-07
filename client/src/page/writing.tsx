@@ -16,7 +16,6 @@ import { siteName } from "../utils/constants";
 import mermaid from 'mermaid';
 import { MarkdownEditor } from '../components/markdown_editor';
 
-// --- 发布与更新函数 ---
 async function publish({ title, alias, listed, content, summary, tags, draft, createdAt, onCompleted, showAlert }: { title: string; listed: boolean; content: string; summary: string; tags: string[]; draft: boolean; alias?: string; createdAt?: Date; onCompleted?: () => void; showAlert: ShowAlertType; }) {
   const t = i18n.t;
   const { data, error } = await client.feed.index.post({ title, alias, content, summary, tags, listed, draft, createdAt }, { headers: headersWithAuth() });
@@ -55,17 +54,10 @@ export function WritingPage({ id }: { id?: number }) {
   const [publishing, setPublishing] = useState(false);
   const { showAlert, AlertUI } = useAlert();
 
-  // --- 字体与排版状态 ---
-  const [fontSize, setFontSize] = useState(localStorage.getItem('rin-fontSize') || '16px');
+  // --- 仅保留字体状态 ---
   const [fontFamily, setFontFamily] = useState(localStorage.getItem('rin-fontFamily') || 'Sarasa Mono SC, JetBrains Mono, monospace');
-  const [lineHeight, setLineHeight] = useState(Number(localStorage.getItem('rin-lineHeight')) || 1.6);
 
-  // 确保 ID 类型匹配 Input 要求
   const safeId = id ? Number(id) : 0;
-
-  // --- 数值转换计算 (供 Monaco Editor 使用) ---
-  const numericFontSize = parseInt(fontSize.replace('px', ''));
-  const actualLineHeight = Math.round(numericFontSize * lineHeight);
 
   function publishButton() {
     if (publishing) return;
@@ -138,13 +130,10 @@ export function WritingPage({ id }: { id?: number }) {
       <Helmet>
         <title>{`${t('writing')} - ${process.env.NAME}`}</title>
         <meta property="og:site_name" content={siteName} />
-        {/* 引入 Google Fonts 支持局部字体预览 */}
         <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;700&family=Zhi+Mang+Xing&display=swap" rel="stylesheet" />
         <style>
           {`
             .vditor-reset, .toc-content, .markdown-content {
-              font-size: ${fontSize} !important;
-              line-height: ${lineHeight} !important;
               font-family: ${fontFamily} !important;
               white-space: pre-wrap !important;
               word-break: break-all;
@@ -162,31 +151,8 @@ export function WritingPage({ id }: { id?: number }) {
         <div className="col-span-2 pb-8">
           <div className="bg-w rounded-2xl shadow-xl shadow-light p-4">
             
-            {/* 排版控制工具栏 */}
             <div className="flex flex-wrap gap-4 mb-3 px-3 py-2 bg-gray-50 dark:bg-zinc-800/50 rounded-lg text-xs opacity-90 border border-gray-100 dark:border-zinc-700">
                <div className="flex items-center gap-2">
-                 <span>{t('fontSize') || '字号'}:</span>
-                 <select 
-                   value={fontSize} 
-                   onChange={(e) => { setFontSize(e.target.value); localStorage.setItem('rin-fontSize', e.target.value); }}
-                   className="bg-transparent border-none outline-none cursor-pointer text-theme font-bold"
-                 >
-                   {['12px', '14px', '16px', '18px', '20px', '24px'].map(v => <option key={v} value={v}>{v}</option>)}
-                 </select>
-               </div>
-               
-               <div className="flex items-center gap-2 border-l pl-3 border-gray-300 dark:border-zinc-600">
-                 <span>{t('lineHeight') || '行距'}:</span>
-                 <input 
-                    type="range" min="1" max="2.5" step="0.1" 
-                    value={lineHeight} 
-                    onChange={(e) => { setLineHeight(Number(e.target.value)); localStorage.setItem('rin-lineHeight', e.target.value.toString()); }}
-                    className="w-20 accent-theme"
-                 />
-                 <span className="w-6 font-mono font-bold text-theme text-center">{lineHeight}</span>
-               </div>
-
-               <div className="flex items-center gap-2 border-l pl-3 border-gray-300 dark:border-zinc-600">
                  <span>{t('fontFamily') || '字体'}:</span>
                  <select 
                    value={fontFamily} 
@@ -200,16 +166,13 @@ export function WritingPage({ id }: { id?: number }) {
                </div>
             </div>
 
-            {/* 移动端显示的元数据输入 */}
             <MetaInput className="md:hidden mb-8" />
 
             <MarkdownEditor 
-                key={`${fontSize}-${fontFamily}-${lineHeight}`} 
+                key={`${fontFamily}`} 
                 content={content} 
                 setContent={setContent} 
                 height='600px'
-                fontSize={numericFontSize}
-                lineHeight={actualLineHeight}
                 fontFamily={fontFamily}
             />
           </div>
@@ -222,7 +185,6 @@ export function WritingPage({ id }: { id?: number }) {
           </div>
         </div>
 
-        {/* 桌面端显示的侧边栏元数据输入 */}
         <div className="hidden md:flex flex-col">
           <MetaInput className="bg-w rounded-2xl shadow-xl shadow-light p-4 mx-8" />
           <div className="flex flex-row justify-center mt-8">
