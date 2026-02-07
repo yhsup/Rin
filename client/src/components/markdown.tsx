@@ -32,7 +32,7 @@ const countNewlinesBeforeNode = (text: string, offset: number) => {
 
 const isMarkdownImageLinkAtEnd = (text: string) => {
   const trimmed = text.trim();
-  const match = trimmed.match(/(.*)(!\\[.*?\\]\\(.*?\\))$/s);
+  const match = trimmed.match(/(.*)(!\[.*?\]\(.*?\))$/s);
   if (match) {
     const [, beforeImage, _] = match;
     return beforeImage.trim().length === 0 || beforeImage.endsWith("\n");
@@ -51,22 +51,36 @@ export function Markdown({ content }: { content: string }) {
 
   const Content = useMemo(() => (
     <div className="markdown-render-container">
-      {/* 注入发布后的样式补丁：解决字体加载、换行、字体大小失效 */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;700&family=Zhi+Mang+Xing&display=swap');
         
+        /* 核心修复：容器不再强制全局 pre-wrap */
         .toc-content {
-          white-space: pre-wrap !important; /* 保留原始换行 */
           word-break: break-word;
           line-height: 1.6;
+          white-space: normal !important; 
         }
 
-        /* 强制允许内联样式中的字体和大小生效 */
+        /* 仅对段落应用 pre-wrap，保留用户的手动换行感 */
+        .toc-content p {
+          white-space: pre-wrap !important;
+          margin-top: 0.5rem;
+          margin-bottom: 0.5rem;
+        }
+
+        /* 表格区域彻底禁用 pre-wrap，消除幽灵空行 */
+        .toc-content table {
+          white-space: normal !important;
+          border-collapse: collapse;
+          width: 100%;
+          margin: 1rem 0;
+          display: table !important;
+        }
+
         .toc-content span[style] {
           display: inline-block; 
         }
 
-        /* 字体补丁：如果内联样式指定了这些字体，确保它们被正确映射到加载的字体库 */
         [style*="Ma Shan Zheng"] { font-family: 'Ma Shan Zheng', cursive !important; }
         [style*="Zhi Mang Xing"] { font-family: 'Zhi Mang Xing', cursive !important; }
         [style*="Noto Serif SC"] { font-family: 'Noto Serif SC', serif !important; }
@@ -82,32 +96,17 @@ export function Markdown({ content }: { content: string }) {
           img({ node, src, ...props }) {
             const offset = node!.position!.start.offset!;
             const previousContent = content.slice(0, offset);
-            const newlinesBefore = countNewlinesBeforeNode(
-              previousContent,
-              offset
-            );
-            const Image = ({
-              rounded,
-              scale,
-            }: {
-              rounded: boolean;
-              scale: string;
-            }) => (
+            const newlinesBefore = countNewlinesBeforeNode(previousContent, offset);
+            const Image = ({ rounded, scale }: { rounded: boolean; scale: string; }) => (
               <img
                 src={src}
                 {...props}
-                onClick={() => {
-                  show(src)
-                }}
+                onClick={() => show(src)}
                 className={`mx-auto ${rounded ? "rounded-xl" : ""}`}
                 style={{ zoom: scale }}
               />
             );
-            if (
-              newlinesBefore >= 1 ||
-              previousContent.trim().length === 0 ||
-              isMarkdownImageLinkAtEnd(previousContent)
-            ) {
+            if (newlinesBefore >= 1 || previousContent.trim().length === 0 || isMarkdownImageLinkAtEnd(previousContent)) {
               return (
                 <span className="block w-full text-center my-4">
                   <Image scale="0.75" rounded={true} />
@@ -125,7 +124,6 @@ export function Markdown({ content }: { content: string }) {
             const [copied, setCopied] = React.useState(false);
             const { children, className, node, ...rest } = props;
             const match = /language-(\w+)/.exec(className || "");
-
             const curContent = content.slice(node?.position?.start.offset || 0);
             const isCodeBlock = curContent.trimStart().startsWith("```");
 
@@ -133,13 +131,6 @@ export function Markdown({ content }: { content: string }) {
               fontFamily: '"Fira Code", monospace',
               fontSize: "14px",
               fontVariantLigatures: "normal",
-              WebkitFontFeatureSettings: '"liga" 1',
-              fontFeatureSettings: '"liga" 1',
-            };
-
-            const inlineCodeStyle = {
-              ...codeBlockStyle,
-              fontSize: "13px",
             };
 
             const language = match ? match[1] : "";
@@ -151,11 +142,7 @@ export function Markdown({ content }: { content: string }) {
                     PreTag="div"
                     className="rounded"
                     language={language}
-                    style={
-                      colorMode === "dark"
-                        ? vscDarkPlus
-                        : base16AteliersulphurpoolLight
-                    }
+                    style={colorMode === "dark" ? vscDarkPlus : base16AteliersulphurpoolLight}
                     wrapLongLines={true}
                     codeTagProps={{ style: codeBlockStyle }}
                   >
@@ -176,139 +163,22 @@ export function Markdown({ content }: { content: string }) {
               return (
                 <code
                   {...rest}
-                  className={`bg-[#eff1f3] dark:bg-[#4a5061] h-[24px] px-[4px] rounded-md mx-[2px] py-[2px] text-neutral-800 dark:text-neutral-300 ${className || ""
-                    }`}
-                  style={inlineCodeStyle}
+                  className={`bg-[#eff1f3] dark:bg-[#4a5061] h-[24px] px-[4px] rounded-md mx-[2px] py-[2px] text-neutral-800 dark:text-neutral-300 ${className || ""}`}
+                  style={{ ...codeBlockStyle, fontSize: "13px" }}
                 >
                   {children}
                 </code>
               );
             }
           },
-          blockquote({ children, ...props }) {
-            return (
-              <blockquote
-                className="border-l-4 border-gray-300 dark:border-gray-500 pl-4 italic text-gray-500 dark:text-gray-400"
-                {...props}
-              >
-                {children}
-              </blockquote>
-            );
-          },
-          em({ children, ...props }) {
-            return (
-              <em className="ml-[1px] mr-[4px]" {...props}>
-                {children}
-              </em>
-            );
-          },
-          strong({ children, ...props }) {
-            return (
-              <strong className="mx-[1px]" {...props}>
-                {children}
-              </strong>
-            );
-          },
-          ul({ children, className, ...props }) {
-            const listClass = className?.includes("contains-task-list")
-              ? "list-none pl-5"
-              : "list-disc pl-5 mt-2";
-            return (
-              <ul className={listClass} {...props}>
-                {children}
-              </ul>
-            );
-          },
-          ol({ children, ...props }) {
-            return (
-              <ol className="list-decimal pl-5" {...props}>
-                {children}
-              </ol>
-            );
-          },
-          li({ children, ...props }) {
-            return (
-              <li className="pl-2 py-1" {...props}>
-                {children}
-              </li>
-            );
-          },
-          a({ children, ...props }) {
-            return (
-              <a
-                className="text-[#0686c8] dark:text-[#2590f1] hover:underline"
-                {...props}
-              >
-                {children}
-              </a>
-            );
-          },
-          h1({ children, ...props }) {
-            return (
-              <h1
-                id={children?.toString()}
-                className="text-3xl font-bold mt-4"
-                {...props}
-              >
-                {children}
-              </h1>
-            );
-          },
-          h2({ children, ...props }) {
-            return (
-              <h2
-                id={children?.toString()}
-                className="text-2xl font-bold mt-4"
-                {...props}
-              >
-                {children}
-              </h2>
-            );
-          },
-          h3({ children, ...props }) {
-            return (
-              <h3
-                id={children?.toString()}
-                className="text-xl font-bold mt-4"
-                {...props}
-              >
-                {children}
-              </h3>
-            );
-          },
-          h4({ children, ...props }) {
-            return (
-              <h4
-                id={children?.toString()}
-                className="text-lg font-bold mt-4"
-                {...props}
-              >
-                {children}
-              </h4>
-            );
-          },
-          h5({ children, ...props }) {
-            return (
-              <h5
-                id={children?.toString()}
-                className="text-base font-bold mt-4"
-                {...props}
-              >
-                {children}
-              </h5>
-            );
-          },
-          h6({ children, ...props }) {
-            return (
-              <h6
-                id={children?.toString()}
-                className="text-sm font-bold mt-4"
-                {...props}
-              >
-                {children}
-              </h6>
-            );
-          },
+          // --- 修复表格 node="[object Object]" 问题 ---
+          table: ({ node, ...props }) => <table className="table" {...props} />,
+          th: ({ node, ...props }) => (
+            <th className="px-4 py-2 border bg-gray-600 font-bold text-white" {...props} />
+          ),
+          td: ({ node, ...props }) => (
+            <td className="px-4 py-2 border" {...props} />
+          ),
           p({ children, ...props }) {
             return (
               <p className="mt-2 py-1 leading-relaxed" {...props}>
@@ -316,40 +186,46 @@ export function Markdown({ content }: { content: string }) {
               </p>
             );
           },
-          hr({ children, ...props }) {
-            return <hr className="my-4" {...props} />;
+          blockquote({ children, ...props }) {
+            return (
+              <blockquote className="border-l-4 border-gray-300 dark:border-gray-500 pl-4 italic text-gray-500 dark:text-gray-400" {...props}>
+                {children}
+              </blockquote>
+            );
           },
-          table: ({ ...props }) => <table className="table" {...props} />,
-          th: ({ ...props }) => (
-            <th className="px-4 py-2 border bg-gray-600" {...props} />
-          ),
-          td: ({ ...props }) => (
-            <td className="px-4 py-2 border" {...props} />
-          ),
-          sup: ({ children, ...props }) => (
-            <sup className="text-xs mr-[4px]" {...props}>
-              {children}
-            </sup>
-          ),
-          sub: ({ children, ...props }) => (
-            <sub className="text-xs mr-[4px]" {...props}>
-              {children}
-            </sub>
-          ),
-          section({ children, ...props }) {
+          em({ children, ...props }) {
+            return <em className="ml-[1px] mr-[4px]" {...props}>{children}</em>;
+          },
+          strong({ children, ...props }) {
+            return <strong className="mx-[1px]" {...props}>{children}</strong>;
+          },
+          ul({ children, className, ...props }) {
+            const listClass = className?.includes("contains-task-list") ? "list-none pl-5" : "list-disc pl-5 mt-2";
+            return <ul className={listClass} {...props}>{children}</ul>;
+          },
+          ol({ children, ...props }) {
+            return <ol className="list-decimal pl-5" {...props}>{children}</ol>;
+          },
+          li({ children, ...props }) {
+            return <li className="pl-2 py-1" {...props}>{children}</li>;
+          },
+          a({ children, ...props }) {
+            return <a className="text-[#0686c8] dark:text-[#2590f1] hover:underline" {...props}>{children}</a>;
+          },
+          h1: ({ node, ...props }) => <h1 className="text-3xl font-bold mt-4" {...props} />,
+          h2: ({ node, ...props }) => <h2 className="text-2xl font-bold mt-4" {...props} />,
+          h3: ({ node, ...props }) => <h3 className="text-xl font-bold mt-4" {...props} />,
+          h4: ({ node, ...props }) => <h4 className="text-lg font-bold mt-4" {...props} />,
+          h5: ({ node, ...props }) => <h5 className="text-base font-bold mt-4" {...props} />,
+          h6: ({ node, ...props }) => <h6 className="text-sm font-bold mt-4" {...props} />,
+          hr: ({ node, ...props }) => <hr className="my-4" {...props} />,
+          sup: ({ node, children, ...props }) => <sup className="text-xs mr-[4px]" {...props}>{children}</sup>,
+          sub: ({ node, children, ...props }) => <sub className="text-xs mr-[4px]" {...props}>{children}</sub>,
+          section({ node, children, ...props }) {
             if (props.hasOwnProperty("data-footnotes")) {
               props.className = `${props.className || ""} mt-8`.trim();
             }
-            const modifiedChildren = React.Children.map(children, (child) => {
-              if (isValidElement(child) && (child.props as any).node?.tagName === "ol") {
-                return cloneElement(child, {
-                  ...child.props,
-                  className: "list-decimal px-10 text-sm text-[#6B7280]",
-                } as React.HTMLAttributes<HTMLParagraphElement>);
-              }
-              return child;
-            });
-            return <section {...props}>{modifiedChildren}</section>;
+            return <section {...props}>{children}</section>;
           },
         }}
       />
@@ -371,10 +247,7 @@ export function Markdown({ content }: { content: string }) {
             src: url,
             alt: alt,
             imageFit: "contain" as const,
-            download: {
-              url: url,
-              filename: filename,
-            },
+            download: { url: url, filename: filename },
           };
         })
         .filter((slide) => slide.src !== "");
@@ -393,10 +266,7 @@ export function Markdown({ content }: { content: string }) {
         slides={slides.current}
         open={index >= 0}
         close={() => setIndex(-1)}
-        zoom={{
-          maxZoomPixelRatio: 3,
-          scrollToZoom: true,
-        }}
+        zoom={{ maxZoomPixelRatio: 3, scrollToZoom: true }}
       />
     </>
   );
