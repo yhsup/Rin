@@ -34,7 +34,7 @@ export function MarkdownEditor({
   const [preview, setPreview] = useState<'edit' | 'preview' | 'comparison'>('edit');
   const [uploading, setUploading] = useState(false);
 
-  /* ---------------- 样式应用逻辑 ---------------- */
+  /* ---------------- 样式应用逻辑 (包含智能包裹) ---------------- */
   const applyStyle = (type: 'bold' | 'italic' | 'underline' | 'strikethrough' | 'sup' | 'sub') => {
     const editor = editorRef.current;
     if (!editor) return;
@@ -112,7 +112,7 @@ export function MarkdownEditor({
   function UploadImageButton() {
     const uploadRef = useRef<HTMLInputElement>(null);
     const upChange = (event: any) => {
-      for (let i = 0; i < event.currentTarget.files.length; i++) {
+      for (let i = 0; i < (event.currentTarget.files?.length || 0); i++) {
         const file = event.currentTarget.files[i];
         if (file.size > 5 * 1024000) {
           alert("File too large (max 5MB)");
@@ -142,13 +142,14 @@ export function MarkdownEditor({
   }
 
   /* ---------------- 编辑器生命周期 ---------------- */
-  const handleEditorMount = (editor: editor.IStandaloneCodeEditor) => {
+  // 修复点：通过第二个参数 monaco 来获取 key 绑定枚举，解决 TS 报错
+  const handleEditorMount = (editor: editor.IStandaloneCodeEditor, monaco: any) => {
     editorRef.current = editor;
 
     // 快捷键支持
-    editor.addCommand(window.monaco.KeyMod.CtrlCmd | window.monaco.KeyCode.KeyB, () => applyStyle('bold'));
-    editor.addCommand(window.monaco.KeyMod.CtrlCmd | window.monaco.KeyCode.KeyI, () => applyStyle('italic'));
-    editor.addCommand(window.monaco.KeyMod.CtrlCmd | window.monaco.KeyCode.KeyU, () => applyStyle('underline'));
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyB, () => applyStyle('bold'));
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyI, () => applyStyle('italic'));
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyU, () => applyStyle('underline'));
 
     editor.onDidCompositionStart(() => { isComposingRef.current = true; });
     editor.onDidCompositionEnd(() => {
