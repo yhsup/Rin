@@ -16,7 +16,7 @@ import {siteName} from "../utils/constants";
 import mermaid from 'mermaid';
 import { MarkdownEditor } from '../components/markdown_editor';
 
-// --- 发布逻辑 ---
+// --- 发布文章函数 ---
 async function publish({
   title, alias, listed, content, summary, tags, draft, createdAt, onCompleted, showAlert
 }: {
@@ -37,7 +37,7 @@ async function publish({
   }
 }
 
-// --- 更新逻辑 ---
+// --- 更新文章函数 ---
 async function update({
   id, title, alias, content, summary, tags, listed, draft, createdAt, onCompleted, showAlert
 }: {
@@ -73,21 +73,21 @@ export function WritingPage({ id }: { id?: number }) {
   const [publishing, setPublishing] = useState(false)
   const { showAlert, AlertUI } = useAlert()
 
-  // --- 新增：字体和字号状态 ---
-  const [fontSize, setFontSize] = useState(localStorage.getItem('rin-editor-size') || '16px');
-  const [fontFamily, setFontFamily] = useState(localStorage.getItem('rin-editor-font') || 'inherit');
+  // --- 新增：字体与字号控制状态 ---
+  const [fontSize, setFontSize] = useState(localStorage.getItem('rin-fontSize') || '14px');
+  const [fontFamily, setFontFamily] = useState(localStorage.getItem('rin-fontFamily') || 'Sarasa Mono SC, JetBrains Mono, monospace');
 
   function publishButton() {
     if (publishing) return;
     const tagsplit = tags.split("#").filter((tag) => tag !== "").map((tag) => tag.trim()) || [];
-    const params = { title, content, summary, tags: tagsplit, draft, alias, listed, createdAt, onCompleted: () => setPublishing(false), showAlert };
+    const payload = { title, content, summary, tags: tagsplit, draft, alias, listed, createdAt, onCompleted: () => setPublishing(false), showAlert };
     setPublishing(true);
     if (id !== undefined) {
-      update({ id, ...params });
+      update({ id, ...payload });
     } else {
       if (!title) { showAlert(t("title_empty")); setPublishing(false); return; }
       if (!content) { showAlert(t("content.empty")); setPublishing(false); return; }
-      publish(params);
+      publish(payload);
     }
   }
 
@@ -128,11 +128,11 @@ export function WritingPage({ id }: { id?: number }) {
         <Input id={id} value={summary} setValue={setSummary} placeholder={t("summary")} className="mt-4" />
         <Input id={id} value={tags} setValue={setTags} placeholder={t("tags")} className="mt-4" />
         <Input id={id} value={alias} setValue={setAlias} placeholder={t("alias")} className="mt-4" />
-        <div className="select-none flex flex-row justify-between items-center mt-6 mb-2 px-4" onClick={() => setDraft(!draft)}>
+        <div className="select-none flex flex-row justify-between items-center mt-6 mb-2 px-4 cursor-pointer" onClick={() => setDraft(!draft)}>
           <p>{t('visible.self_only')}</p>
           <Checkbox id="draft" value={draft} setValue={setDraft} placeholder={t('draft')} />
         </div>
-        <div className="select-none flex flex-row justify-between items-center mt-6 mb-2 px-4" onClick={() => setListed(!listed)}>
+        <div className="select-none flex flex-row justify-between items-center mt-6 mb-2 px-4 cursor-pointer" onClick={() => setListed(!listed)}>
           <p>{t('listed')}</p>
           <Checkbox id="listed" value={listed} setValue={setListed} placeholder={t('listed')} />
         </div>
@@ -148,13 +148,27 @@ export function WritingPage({ id }: { id?: number }) {
     <>
       <Helmet>
         <title>{`${t('writing')} - ${process.env.NAME}`}</title>
-        {/* --- 核心注入：修改编辑器内部样式 --- */}
+        {/* --- 核心：通过 CSS 变量和强制样式覆盖 Monaco Editor --- */}
         <style>
           {`
-            .vditor-reset, .vditor-textarea, .markdown-editor textarea {
+            /* 覆盖编辑器核心文字 */
+            .monaco-editor .view-lines, 
+            .monaco-editor .view-line,
+            .monaco-editor .line-numbers,
+            .monaco-editor .inputarea {
               font-size: ${fontSize} !important;
               font-family: ${fontFamily} !important;
+            }
+
+            /* 修正行高，防止字号变大后重叠 */
+            .monaco-editor .view-line {
               line-height: 1.6 !important;
+            }
+
+            /* 如果预览区存在，同步修改预览区字体 */
+            .toc-content, .markdown-editor textarea {
+              font-size: ${fontSize} !important;
+              font-family: ${fontFamily} !important;
             }
           `}
         </style>
@@ -169,30 +183,31 @@ export function WritingPage({ id }: { id?: number }) {
         <div className="col-span-2 pb-8">
           <div className="bg-w rounded-2xl shadow-xl shadow-light p-4">
             
-            {/* --- 新增：编辑器工具条 --- */}
-            <div className="flex gap-4 mb-4 px-2 py-1 bg-gray-50 dark:bg-zinc-800/50 rounded-lg text-[10px] uppercase tracking-wider opacity-70">
-              <div className="flex items-center gap-2">
-                <span>Size:</span>
-                <select 
-                  value={fontSize} 
-                  onChange={(e) => { setFontSize(e.target.value); localStorage.setItem('rin-editor-size', e.target.value); }}
-                  className="bg-transparent border-none outline-none cursor-pointer font-bold"
-                >
-                  {['14px', '16px', '18px', '20px', '24px'].map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-              <div className="flex items-center gap-2">
-                <span>Font:</span>
-                <select 
-                  value={fontFamily} 
-                  onChange={(e) => { setFontFamily(e.target.value); localStorage.setItem('rin-editor-font', e.target.value); }}
-                  className="bg-transparent border-none outline-none cursor-pointer font-bold"
-                >
-                  <option value="inherit">Default</option>
-                  <option value="'JetBrains Mono', monospace">Monospace</option>
-                  <option value="'Noto Serif SC', serif">Serif</option>
-                </select>
-              </div>
+            {/* --- 新增：编辑器自定义工具栏 --- */}
+            <div className="flex flex-row gap-4 mb-3 px-2 py-1 bg-gray-50 dark:bg-zinc-800/50 rounded-lg text-xs opacity-70 border border-gray-100 dark:border-zinc-700">
+               <div className="flex items-center gap-1">
+                 <span>字号:</span>
+                 <select 
+                   value={fontSize} 
+                   onChange={(e) => { setFontSize(e.target.value); localStorage.setItem('rin-fontSize', e.target.value); }}
+                   className="bg-transparent border-none outline-none cursor-pointer text-theme font-bold"
+                 >
+                   {['12px', '14px', '16px', '18px', '20px', '24px'].map(v => <option key={v} value={v}>{v}</option>)}
+                 </select>
+               </div>
+               <div className="flex items-center gap-1">
+                 <span>字体:</span>
+                 <select 
+                   value={fontFamily} 
+                   onChange={(e) => { setFontFamily(e.target.value); localStorage.setItem('rin-fontFamily', e.target.value); }}
+                   className="bg-transparent border-none outline-none cursor-pointer text-theme font-bold"
+                 >
+                   <option value="Sarasa Mono SC, JetBrains Mono, monospace">更纱/JB Mono</option>
+                   <option value="'Inter', system-ui, sans-serif">无衬线 (Inter)</option>
+                   <option value="'Noto Serif SC', serif">衬线 (宋体)</option>
+                   <option value="Consolas, 'Courier New', monospace">Consolas</option>
+                 </select>
+               </div>
             </div>
 
             {MetaInput({ className: "visible md:hidden mb-8" })}
