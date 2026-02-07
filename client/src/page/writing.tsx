@@ -16,6 +16,7 @@ import {siteName} from "../utils/constants";
 import mermaid from 'mermaid';
 import { MarkdownEditor } from '../components/markdown_editor';
 
+// --- 发布与更新函数 ---
 async function publish({ title, alias, listed, content, summary, tags, draft, createdAt, onCompleted, showAlert }: { title: string; listed: boolean; content: string; summary: string; tags: string[]; draft: boolean; alias?: string; createdAt?: Date; onCompleted?: () => void; showAlert: ShowAlertType; }) {
   const t = i18n.t;
   const { data, error } = await client.feed.index.post({ title, alias, content, summary, tags, listed, draft, createdAt }, { headers: headersWithAuth() });
@@ -54,11 +55,12 @@ export function WritingPage({ id }: { id?: number }) {
   const [publishing, setPublishing] = useState(false);
   const { showAlert, AlertUI } = useAlert();
 
+  // --- 字体与排版状态 ---
   const [fontSize, setFontSize] = useState(localStorage.getItem('rin-fontSize') || '16px');
   const [fontFamily, setFontFamily] = useState(localStorage.getItem('rin-fontFamily') || 'Sarasa Mono SC, JetBrains Mono, monospace');
   const [lineHeight, setLineHeight] = useState(Number(localStorage.getItem('rin-lineHeight')) || 1.6);
 
-  // --- 核心计算：将字符串和倍数转换为 Monaco 需要的数值 ---
+  // --- 数值转换计算 (供 Monaco Editor 使用) ---
   const numericFontSize = parseInt(fontSize.replace('px', ''));
   const actualLineHeight = Math.round(numericFontSize * lineHeight);
 
@@ -135,17 +137,28 @@ export function WritingPage({ id }: { id?: number }) {
         <meta property="og:site_name" content={siteName} />
         <style>
           {`
-            /* 1. 仅保留预览区和渲染容器的样式 */
-            .toc-content, .vditor-reset, .markdown-editor textarea {
-              white-space: pre-wrap !important;
-              word-break: break-all;
+            /* 预览区与文字渲染对齐 */
+            .vditor-reset, .toc-content, .markdown-content {
               font-size: ${fontSize} !important;
               line-height: ${lineHeight} !important;
               font-family: ${fontFamily} !important;
+              white-space: pre-wrap !important;
+              word-break: break-all;
             }
 
-            /* 2. 移除所有对 .monaco-editor 内部布局（height/line-height/cursor）的强制修改 */
-            /* 因为这些现在由组件内部 options 原生计算，CSS 覆盖会导致错位 */
+            /* 样式预览支持：下划线、上标、下标、中划线 */
+            .vditor-reset u, .toc-content u { text-decoration: underline; text-underline-offset: 4px; }
+            .vditor-reset sup, .toc-content sup { font-size: 0.75em; vertical-align: super; line-height: 0; }
+            .vditor-reset sub, .toc-content sub { font-size: 0.75em; vertical-align: sub; line-height: 0; }
+            .vditor-reset del, .toc-content del { text-decoration: line-through; opacity: 0.6; }
+
+            /* 彻底移除针对 Monaco 内部位置的手动干预 CSS */
+            .monaco-editor .view-line, 
+            .monaco-editor .cursor, 
+            .monaco-editor .view-overlays div {
+              transform: none !important;
+              margin-top: 0 !important;
+            }
           `}
         </style>
       </Helmet>
@@ -154,9 +167,10 @@ export function WritingPage({ id }: { id?: number }) {
         <div className="col-span-2 pb-8">
           <div className="bg-w rounded-2xl shadow-xl shadow-light p-4">
             
-            <div className="flex flex-wrap gap-4 mb-3 px-3 py-2 bg-gray-50 dark:bg-zinc-800/50 rounded-lg text-xs opacity-80 border border-gray-100 dark:border-zinc-700">
+            {/* 排版控制工具栏 */}
+            <div className="flex flex-wrap gap-4 mb-3 px-3 py-2 bg-gray-50 dark:bg-zinc-800/50 rounded-lg text-xs opacity-90 border border-gray-100 dark:border-zinc-700">
                <div className="flex items-center gap-2">
-                 <span>字号:</span>
+                 <span>{t('fontSize') || '字号'}:</span>
                  <select 
                    value={fontSize} 
                    onChange={(e) => { setFontSize(e.target.value); localStorage.setItem('rin-fontSize', e.target.value); }}
@@ -167,18 +181,18 @@ export function WritingPage({ id }: { id?: number }) {
                </div>
                
                <div className="flex items-center gap-2 border-l pl-3 border-gray-300 dark:border-zinc-600">
-                 <span>行距:</span>
+                 <span>{t('lineHeight') || '行距'}:</span>
                  <input 
                     type="range" min="1" max="2.5" step="0.1" 
                     value={lineHeight} 
-                    onChange={(e) => { setLineHeight(Number(e.target.value)); localStorage.setItem('rin-lineHeight', e.target.value); }}
+                    onChange={(e) => { setLineHeight(Number(e.target.value)); localStorage.setItem('rin-lineHeight', e.target.value.toString()); }}
                     className="w-20 accent-theme"
                  />
-                 <span className="w-6 font-mono">{lineHeight}</span>
+                 <span className="w-6 font-mono font-bold text-theme text-center">{lineHeight}</span>
                </div>
 
                <div className="flex items-center gap-2 border-l pl-3 border-gray-300 dark:border-zinc-600">
-                 <span>字体:</span>
+                 <span>{t('fontFamily') || '字体'}:</span>
                  <select 
                    value={fontFamily} 
                    onChange={(e) => { setFontFamily(e.target.value); localStorage.setItem('rin-fontFamily', e.target.value); }}
