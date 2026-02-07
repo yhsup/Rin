@@ -73,9 +73,17 @@ export function WritingPage({ id }: { id?: number }) {
   const [publishing, setPublishing] = useState(false)
   const { showAlert, AlertUI } = useAlert()
 
-  // --- 新增：字体与字号控制状态 ---
+  // --- 字体控制状态 ---
   const [fontSize, setFontSize] = useState(localStorage.getItem('rin-fontSize') || '14px');
   const [fontFamily, setFontFamily] = useState(localStorage.getItem('rin-fontFamily') || 'Sarasa Mono SC, JetBrains Mono, monospace');
+
+  // --- 核心修复：当字号改变时，强制触发 Monaco 引擎重绘 ---
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      window.dispatchEvent(new Event('resize'));
+    }, 200); // 延迟 200ms 等待 CSS 变量注入生效
+    return () => clearTimeout(timer);
+  }, [fontSize, fontFamily]);
 
   function publishButton() {
     if (publishing) return;
@@ -95,18 +103,19 @@ export function WritingPage({ id }: { id?: number }) {
     if (id) {
       client.feed({ id }).get({ headers: headersWithAuth() }).then(({ data }) => {
         if (data && typeof data !== "string") {
-          if (title == "" && data.title) setTitle(data.title);
-          if (tags == "" && data.hashtags) setTags(data.hashtags.map(({ name }) => `#${name}`).join(" "));
-          if (alias == "" && data.alias) setAlias(data.alias);
-          if (content == "") setContent(data.content);
-          if (summary == "") setSummary(data.summary);
+          if (title === "" && data.title) setTitle(data.title);
+          if (tags === "" && data.hashtags) setTags(data.hashtags.map(({ name }) => `#${name}`).join(" "));
+          if (alias === "" && data.alias) setAlias(data.alias);
+          if (content === "") setContent(data.content);
+          if (summary === "") setSummary(data.summary);
           setListed(data.listed === 1);
           setDraft(data.draft === 1);
           setCreatedAt(new Date(data.createdAt));
         }
       });
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   const debouncedUpdate = useCallback(
     _.debounce(() => {
@@ -148,70 +157,53 @@ export function WritingPage({ id }: { id?: number }) {
     <>
       <Helmet>
         <title>{`${t('writing')} - ${process.env.NAME}`}</title>
+        {/* 使用 siteName 确保通过 TS 检查 */}
+        <meta property="og:site_name" content={siteName} />
         <style>
           {`
             :root {
               --editor-fs: ${fontSize};
-              /* 动态行高：建议设为字号的 1.5 倍 */
               --editor-lh: calc(${fontSize.replace('px', '')} * 1.5px);
             }
       
-            /* 1. 强制重置 Monaco 核心容器 */
-            .monaco-editor, 
-            .monaco-editor .overflow-guard, 
-            .monaco-editor .monaco-scrollable-element {
+            .monaco-editor {
               --vscode-editor-font-size: var(--editor-fs) !important;
               --vscode-editor-font-family: ${fontFamily} !important;
             }
       
-            /* 2. 修复文字层、选中层、当前行层的高度同步 */
+            /* 修正光标大小和位置：高度跟随字体，垂直偏移对齐文字 */
+            .monaco-editor .cursor {
+              height: var(--editor-fs) !important;
+              transform: translateY(calc((var(--editor-lh) - var(--editor-fs)) / 2)) !important;
+              width: 2px !important;
+            }
+      
+            /* 强制对齐文字层、选中背景、当前行背景 */
             .monaco-editor .view-line,
             .monaco-editor .view-overlays .current-line,
             .monaco-editor .view-overlays .selected-text,
-            .monaco-editor .lines-content,
             .monaco-editor .view-lines {
               height: var(--editor-lh) !important;
               line-height: var(--editor-lh) !important;
             }
       
-            /* 3. 核心修复：文字渲染层强制继承字体大小 */
-            /* 这能缓解字符宽度计算不一致的问题 */
-            .monaco-editor .view-lines {
-              font-variant-ligatures: none !important;
-              letter-spacing: 0px !important;
-            }
-      
+            /* 修正文字渲染层字体继承 */
             .monaco-editor .view-line span {
               font-size: var(--editor-fs) !important;
               font-family: ${fontFamily} !important;
             }
       
-            /* 4. 修复光标太小的问题 */
-            .monaco-editor .cursor {
-              /* 让光标高度略大于字体，增加视觉舒适度 */
-              height: calc(var(--editor-fs) + 4px) !important;
-              width: 2px !important;
-            }
-      
-            /* 5. 修复行号对齐 */
-            .monaco-editor .line-numbers {
-              font-size: calc(var(--editor-fs) * 0.8) !important;
-              line-height: var(--editor-lh) !important;
-              height: var(--editor-lh) !important;
-            }
-            
-            /* 6. 强制让高亮色块尝试填满容器，减少宽度误差 */
             .monaco-editor .selected-text {
               opacity: 0.4 !important;
             }
           `}
         </style>
       </Helmet>
+
       <div className="grid grid-cols-1 md:grid-cols-3 t-primary mt-2">
         <div className="col-span-2 pb-8">
           <div className="bg-w rounded-2xl shadow-xl shadow-light p-4">
             
-            {/* --- 新增：编辑器自定义工具栏 --- */}
             <div className="flex flex-row gap-4 mb-3 px-2 py-1 bg-gray-50 dark:bg-zinc-800/50 rounded-lg text-xs opacity-70 border border-gray-100 dark:border-zinc-700">
                <div className="flex items-center gap-1">
                  <span>字号:</span>
