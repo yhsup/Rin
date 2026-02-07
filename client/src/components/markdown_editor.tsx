@@ -10,8 +10,6 @@ interface MarkdownEditorProps {
   setContent: (content: string) => void;
   placeholder?: string;
   height?: string;
-  fontSize?: number;
-  lineHeight?: number;
   fontFamily?: string;
 }
 
@@ -20,8 +18,6 @@ export function MarkdownEditor({
   setContent,
   placeholder = "> Write your content here...",
   height = "400px",
-  fontSize = 14,
-  lineHeight = 21,
   fontFamily = "Sarasa Mono SC, JetBrains Mono, monospace"
 }: MarkdownEditorProps) {
   const { t } = useTranslation();
@@ -31,7 +27,6 @@ export function MarkdownEditor({
   const isComposingRef = useRef(false);
   const [preview, setPreview] = useState<'edit' | 'preview' | 'comparison'>('edit');
 
-  /* ---------------- 样式应用逻辑 ---------------- */
   const applyStyle = (type: string) => {
     const editor = editorRef.current;
     if (!editor) return;
@@ -64,7 +59,6 @@ export function MarkdownEditor({
     editor.focus();
   };
 
-  /* ---------------- 局部字体应用 ---------------- */
   const applyFontFamily = (font: string) => {
     const editor = editorRef.current;
     if (!editor || !font) return;
@@ -83,7 +77,6 @@ export function MarkdownEditor({
     editor.focus();
   };
 
-  /* ---------------- 编辑器实时装饰逻辑 (实时预览字体) ---------------- */
   const updateFontDecorations = (editor: editor.IStandaloneCodeEditor, monaco: any) => {
     const model = editor.getModel();
     if (!model) return;
@@ -114,11 +107,9 @@ export function MarkdownEditor({
     decorationsRef.current = editor.deltaDecorations(decorationsRef.current, newDecorations);
   };
 
-  /* ---------------- 生命周期与事件 ---------------- */
   const handleEditorMount = (editor: editor.IStandaloneCodeEditor, monaco: any) => {
     editorRef.current = editor;
 
-    // 快捷键
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyB, () => applyStyle('bold'));
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyI, () => applyStyle('italic'));
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyU, () => applyStyle('underline'));
@@ -142,7 +133,6 @@ export function MarkdownEditor({
 
   return (
     <div className="flex flex-col gap-2">
-      {/* 预览模式切换 */}
       <div className="flex flex-row space-x-2 border-b pb-2 dark:border-zinc-800">
         <button className={`px-2 py-1 rounded ${preview === 'edit' ? "bg-theme text-white" : ""}`} onClick={() => setPreview('edit')}>
           {t("edit") || "编辑"}
@@ -157,7 +147,6 @@ export function MarkdownEditor({
 
       <div className={`grid grid-cols-1 ${preview === 'comparison' ? "sm:grid-cols-2" : ""}`}>
         <div className={preview === 'preview' ? "hidden" : "flex flex-col"}>
-          {/* 工具栏 */}
           <div className="flex flex-wrap items-center gap-2 mb-2 p-1 bg-gray-50 dark:bg-zinc-900/50 rounded border dark:border-zinc-800">
             <button onClick={() => applyStyle('bold')} className="p-1 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded" title="加粗"><i className="ri-bold" /></button>
             <button onClick={() => applyStyle('italic')} className="p-1 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded" title="斜体"><i className="ri-italic" /></button>
@@ -189,8 +178,6 @@ export function MarkdownEditor({
               theme={colorMode === "dark" ? "vs-dark" : "light"}
               options={{
                 wordWrap: "on",
-                fontSize,
-                lineHeight,
                 fontFamily,
                 minimap: { enabled: false },
                 automaticLayout: true,
@@ -201,7 +188,6 @@ export function MarkdownEditor({
           </div>
         </div>
         
-        {/* 预览区 */}
         <div className={`px-4 overflow-y-auto border-l dark:border-zinc-800 ${preview === 'edit' ? "hidden" : ""}`} style={{ height }}>
           <Markdown content={content || placeholder} />
         </div>
