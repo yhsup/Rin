@@ -1,5 +1,5 @@
 import "katex/dist/katex.min.css";
-import React, { cloneElement, isValidElement, useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import {
@@ -18,7 +18,29 @@ import Zoom from "yet-another-react-lightbox/plugins/zoom";
 import "yet-another-react-lightbox/styles.css";
 import { useColorMode } from "../utils/darkModeUtils";
 
-// ... countNewlinesBeforeNode 和 isMarkdownImageLinkAtEnd 保持不变 ...
+// --- 工具函数：计算节点前的换行符数量 ---
+const countNewlinesBeforeNode = (text: string, offset: number) => {
+  let newlinesBefore = 0;
+  for (let i = offset - 1; i >= 0; i--) {
+    if (text[i] === "\n") {
+      newlinesBefore++;
+    } else {
+      break;
+    }
+  }
+  return newlinesBefore;
+};
+
+// --- 工具函数：判断是否是行末的图片链接 ---
+const isMarkdownImageLinkAtEnd = (text: string) => {
+  const trimmed = text.trim();
+  const match = trimmed.match(/(.*)(!\\[.*?\\]\\(.*?\\))$/s);
+  if (match) {
+    const [, beforeImage] = match;
+    return beforeImage.trim().length === 0 || beforeImage.endsWith("\n");
+  }
+  return false;
+};
 
 export function Markdown({ content }: { content: string }) {
   const colorMode = useColorMode();
@@ -28,6 +50,31 @@ export function Markdown({ content }: { content: string }) {
   useEffect(() => {
     slides.current = undefined;
   }, [content]);
+
+  // 图片点击查看逻辑
+  const show = (src: string | undefined) => {
+    let slidesLocal = slides.current;
+    if (!slidesLocal) {
+      const parent = document.getElementsByClassName("toc-content")[0];
+      if (!parent) return;
+      const images = parent.querySelectorAll("img");
+      slidesLocal = Array.from(images).map((image) => {
+        const url = image.getAttribute("src") || "";
+        return {
+          src: url,
+          alt: image.getAttribute("alt") || "",
+          imageFit: "contain" as const,
+          download: { 
+            url: url, 
+            filename: url.split("/").pop() || "image" 
+          },
+        };
+      }).filter((slide) => slide.src !== "");
+      slides.current = slidesLocal;
+    }
+    const idx = slidesLocal?.findIndex((slide) => slide.src === src) ?? -1;
+    setIndex(idx);
+  };
 
   const Content = useMemo(() => (
     <div className="markdown-render-wrapper">
@@ -39,17 +86,16 @@ export function Markdown({ content }: { content: string }) {
           word-break: break-word;
         }
 
-        /* 强制让所有带有 style 的元素使用 flex/inline-block 布局，以响应行高 */
-        .toc-content [style*="line-height"] {
+        /* 确保内联样式生效 */
+        .toc-content span[style], .toc-content p[style] {
           display: inline-block;
-          width: 100%; /* 针对块级样式的 span */
+          max-width: 100%;
         }
 
-        /* 确保字体映射 */
+        /* 字体补丁 */
         [style*="Ma Shan Zheng"] { font-family: 'Ma Shan Zheng', cursive !important; }
         [style*="Zhi Mang Xing"] { font-family: 'Zhi Mang Xing', cursive !important; }
         [style*="Noto Serif SC"] { font-family: 'Noto Serif SC', serif !important; }
-        [style*="Sarasa Mono SC"] { font-family: 'Sarasa Mono SC', monospace !important; }
       `}</style>
 
       <ReactMarkdown
@@ -58,121 +104,97 @@ export function Markdown({ content }: { content: string }) {
         children={content}
         rehypePlugins={[rehypeKatex, rehypeRaw]}
         components={{
-          // 处理 P 标签：它是很多样式的容器
+          // 处理样式透传
           p({ children, style, ...props }) {
-            return (
-              <p 
-                style={{ ...style, lineHeight: style?.lineHeight || 'inherit' }} 
-                className="my-2" 
-                {...props}
-              >
-                {children}
-              </p>
-            );
+            return <p style={style} className="my-2" {...props}>{children}</p>;
           },
-          // 处理 Span 标签：它是 Vditor 注入字号和行高的主要载体
           span({ children, style, ...props }) {
-            // 显式提取 style 并重新应用到 React 组件上
+            return <span style={style} {...props}>{children}</span>;
+          },
+          div({ children, style, ...props }) {
+            return <div style={style} {...props}>{children}</div>;
+          },
+          // 图片处理逻辑
+          img({ node, src, ...props }) {
+            const offset = node?.position?.start.offset ?? 0;
+            const previousContent = content.slice(0, offset);
+            const newlinesBefore = countNewlinesBeforeNode(previousContent, offset);
+            
+            const isBlock = newlinesBefore >= 1 || 
+                            previousContent.trim().length === 0 || 
+                            isMarkdownImageLinkAtEnd(previousContent);
+
             return (
-              <span 
-                style={{ ...style }} 
-                {...props}
-              >
-                {children}
+              <span className={isBlock ? "block w-full text-center my-4" : "inline-block align-middle mx-1"}>
+                <img 
+                  src={src} 
+                  {...props} 
+                  onClick={() => show(src)}
+                  className={`mx-auto ${isBlock ? "rounded-xl" : ""}`}
+                  style={{ zoom: isBlock ? "0.75" : "0.5" }}
+                />
               </span>
             );
           },
-          // 处理 Div 标签：防止某些 HTML 块样式丢失
-          div({ children, style, ...props }) {
-            return (
-              <div style={{ ...style }} {...props}>
-                {children}
-              </div>
-            );
-          },
-          // --- 以下为原有的其他组件逻辑 ---
-          img({ node, src, ...props }) {
-            const offset = node!.position!.start.offset!;
-            const previousContent = content.slice(0, offset);
-            const newlinesBefore = countNewlinesBeforeNode(previousContent, offset);
-            const Image = ({ rounded, scale }: { rounded: boolean; scale: string; }) => (
-              <img src={src} {...props} onClick={() => show(src)}
-                className={`mx-auto ${rounded ? "rounded-xl" : ""}`}
-                style={{ zoom: scale }}
-              />
-            );
-            if (newlinesBefore >= 1 || previousContent.trim().length === 0 || isMarkdownImageLinkAtEnd(previousContent)) {
-              return <span className="block w-full text-center my-4"><Image scale="0.75" rounded={true} /></span>;
-            }
-            return <span className="inline-block align-middle mx-1 "><Image scale="0.5" rounded={false} /></span>;
-          },
+          // 代码块
           code(props) {
             const [copied, setCopied] = React.useState(false);
             const { children, className, node, ...rest } = props;
             const match = /language-(\w+)/.exec(className || "");
-            const curContent = content.slice(node?.position?.start.offset || 0);
-            const isCodeBlock = curContent.trimStart().startsWith("```");
-            const codeBlockStyle = { fontFamily: '"Fira Code", monospace', fontSize: "14px" };
-            const language = match ? match[1] : "";
+            const isCodeBlock = content.slice(node?.position?.start.offset || 0).trimStart().startsWith("```");
+            const codeStyle = { fontFamily: '"Fira Code", monospace', fontSize: "14px" };
+
             if (isCodeBlock) {
               return (
                 <div className="relative group">
-                  <SyntaxHighlighter PreTag="div" className="rounded" language={language}
+                  <SyntaxHighlighter 
+                    PreTag="div" 
+                    language={match ? match[1] : ""}
                     style={colorMode === "dark" ? vscDarkPlus : base16AteliersulphurpoolLight}
-                    wrapLongLines={true} codeTagProps={{ style: codeBlockStyle }}
+                    wrapLongLines={true} 
+                    codeTagProps={{ style: codeStyle }}
                   >
                     {String(children).replace(/\n$/, "")}
                   </SyntaxHighlighter>
-                  <button className="absolute top-1 right-1 px-2 py-1 bg-w rounded-md text-sm bg-hover invisible group-hover:visible"
-                    onClick={() => { navigator.clipboard.writeText(String(children)); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+                  <button 
+                    className="absolute top-1 right-1 px-2 py-1 bg-w rounded-md text-sm bg-hover invisible group-hover:visible"
+                    onClick={() => {
+                      navigator.clipboard.writeText(String(children));
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    }}
                   >
                     {copied ? "Copied!" : "Copy"}
                   </button>
                 </div>
               );
             }
-            return <code {...rest} className={`bg-[#eff1f3] dark:bg-[#4a5061] px-[4px] rounded-md ${className || ""}`} style={{...codeBlockStyle, fontSize: "13px"}}>{children}</code>;
+            return <code {...rest} className={`bg-[#eff1f3] dark:bg-[#4a5061] px-[4px] rounded-md`} style={{...codeStyle, fontSize: "13px"}}>{children}</code>;
           },
-          blockquote: ({children, ...props}) => <blockquote className="border-l-4 border-gray-300 pl-4 italic text-gray-500" {...props}>{children}</blockquote>,
+          // 基础标签
+          blockquote: ({children, ...props}) => <blockquote className="border-l-4 border-gray-300 pl-4 italic" {...props}>{children}</blockquote>,
+          a: ({children, ...props}) => <a className="text-[#0686c8] hover:underline" {...props}>{children}</a>,
           ul: ({children, className, ...props}) => <ul className={className?.includes("contains-task-list") ? "list-none pl-5" : "list-disc pl-5 mt-2"} {...props}>{children}</ul>,
           ol: ({children, ...props}) => <ol className="list-decimal pl-5" {...props}>{children}</ol>,
-          li: ({children, ...props}) => <li className="pl-2 py-1" {...props}>{children}</li>,
-          a: ({children, ...props}) => <a className="text-[#0686c8] hover:underline" {...props}>{children}</a>,
-          h1: ({children, ...props}) => <h1 id={children?.toString()} className="text-3xl font-bold mt-4" {...props}>{children}</h1>,
-          h2: ({children, ...props}) => <h2 id={children?.toString()} className="text-2xl font-bold mt-4" {...props}>{children}</h2>,
-          h3: ({children, ...props}) => <h3 id={children?.toString()} className="text-xl font-bold mt-4" {...props}>{children}</h3>,
-          table: ({ ...props }) => <table className="table" {...props} />,
-          th: ({ ...props }) => <th className="px-4 py-2 border bg-gray-600 text-white" {...props} />,
-          td: ({ ...props }) => <td className="px-4 py-2 border" {...props} />,
-          sup: ({children, ...props}) => <sup className="text-xs mr-[4px]" {...props}>{children}</sup>,
-          sub: ({children, ...props}) => <sub className="text-xs mr-[4px]" {...props}>{children}</sub>,
+          h1: ({children, ...props}) => <h1 className="text-3xl font-bold mt-4" {...props}>{children}</h1>,
+          h2: ({children, ...props}) => <h2 className="text-2xl font-bold mt-4" {...props}>{children}</h2>,
+          h3: ({children, ...props}) => <h3 className="text-xl font-bold mt-4" {...props}>{children}</h3>,
         }}
       />
     </div>
   ), [content, colorMode]);
 
-  const show = (src: string | undefined) => {
-    let slidesLocal = slides.current;
-    if (!slidesLocal) {
-      const parent = document.getElementsByClassName("toc-content")[0];
-      if (!parent) return;
-      const images = parent.querySelectorAll("img");
-      slidesLocal = Array.from(images).map((image) => ({
-        src: image.getAttribute("src") || "",
-        alt: image.getAttribute("alt") || "",
-        imageFit: "contain" as const,
-        download: { url: image.getAttribute("src") || "", filename: (image.getAttribute("src") || "").split("/").pop() || "" },
-      })).filter((slide) => slide.src !== "");
-      slides.current = slidesLocal;
-    }
-    const index = slidesLocal?.findIndex((slide) => slide.src === src) ?? -1;
-    setIndex(index);
-  };
-
   return (
     <>
       {Content}
-      <Lightbox plugins={[Zoom, Counter]} index={index} slides={slides.current} open={index >= 0} close={() => setIndex(-1)} zoom={{ maxZoomPixelRatio: 3, scrollToZoom: true }} />
+      <Lightbox 
+        plugins={[Zoom, Counter]} 
+        index={index} 
+        slides={slides.current} 
+        open={index >= 0} 
+        close={() => setIndex(-1)} 
+        zoom={{ maxZoomPixelRatio: 3, scrollToZoom: true }} 
+      />
     </>
   );
 }
