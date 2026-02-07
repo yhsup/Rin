@@ -31,18 +31,44 @@ textarea:focus {
   @apply bg-w;
 }
 
-/* 修改后的图片样式：集成了圆角、居中以及安全防护 */
+/* --- 正文图片样式及防护 --- */
 .wmde-markdown img {
   @apply rounded-lg;
   display: block;
   margin-left: auto;
   margin-right: auto;
+  
+  /* 防护：禁止 iOS 长按菜单、禁止拖拽、禁止选中 */
+  -webkit-touch-callout: none !important;
+  -webkit-user-drag: none !important;
+  user-select: none !important;
+  pointer-events: auto; /* 确保左键点击放大功能正常 */
+}
 
-  /* --- 安全防护增强 --- */
-  -webkit-touch-callout: none !important; /* 禁止 iOS 长按弹出保存图片菜单 */
-  -webkit-user-drag: none !important;     /* 禁止鼠标拖拽图片 */
-  user-select: none !important;           /* 禁止选中图片 */
-  pointer-events: auto;                   /* 确保点击放大功能依然可用 */
+/* --- 图片放大插件 (Lightbox) 深度防护 --- */
+
+/* 1. 彻底隐藏 yet-another-react-lightbox 的下载按钮 */
+.yarl__button_download {
+  display: none !important;
+}
+
+/* 2. 隐藏工具栏中可能的下载图标 (通过 aria-label 定位) */
+.yarl__toolbar [aria-label="Download"] {
+  display: none !important;
+}
+
+/* 3. 禁止在放大预览层上进行右键操作和长按 */
+.yarl__slide_image {
+  -webkit-touch-callout: none !important;
+  -webkit-user-drag: none !important;
+  user-select: none !important;
+  /* 如果你想更绝一点，取消下面行的注释可以禁止预览图的鼠标交互 */
+  /* pointer-events: none !important; */
+}
+
+/* 4. 隐藏通用的 RemixIcon 下载图标 (预防万一) */
+.ri-download-line, .ri-download-fill {
+  display: none !important;
 }
 
 ol {
