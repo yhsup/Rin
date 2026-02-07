@@ -74,28 +74,40 @@ export function WritingPage({ id }: { id?: number }) {
   const [publishing, setPublishing] = useState(false)
   const { showAlert, AlertUI } = useAlert()
 
-  // 辅助函数：将 Markdown 转换为摘要纯文本（含图片占位）
+  // 辅助函数：将 Markdown 转换为摘要纯文本（含图片与表格占位）
   const generateAutoSummary = (text: string) => {
-    // 1. 先把所有的图片标签 ![]() 替换为 [图片] 占位符
-    let cleaned = text.replace(/!\[.*?\]\(.*?\)/g, '[图片]');
+    // 1. 处理占位符：图片转为 [图片]，表格块转为 [表格]
+    let cleaned = text
+      .replace(/!\[.*?\]\(.*?\)/g, '[图片]')
+      // 识别表格逻辑：匹配以 | 开头并包含换行的典型 Markdown 表格结构
+      .replace(/(\n|^)\|(.+?)\|[\s\S]+?(\n\n|$)/g, '$1[表格]$3');
 
     // 2. 剥离其他 Markdown 标签
     cleaned = cleaned
       .replace(/\[(.*?)\]\(.*?\)/g, '$1')    // 移除链接地址，保留链接文字
       .replace(/<[^>]*>/g, '')               // 移除 HTML 标签
       .replace(/[#*`~>]/g, '')               // 移除 Markdown 特殊符号
-      .replace(/\s+/g, ' ')                  // 合并换行和多余空格
+      .replace(/\s+/g, ' ')                  // 将所有换行和多余空格转为一个空格，防止撑开列表布局
       .trim();
 
     // 3. 截取前 150 字
-    return cleaned.slice(0, 150) || (text.includes('![') ? "[图片]" : "");
+    const summaryResult = cleaned.slice(0, 150);
+
+    // 4. 兜底逻辑：如果截取后为空，根据原始内容判断
+    if (!summaryResult) {
+      if (text.includes('|---') || text.includes('|')) return "[表格]";
+      if (text.includes('![')) return "[图片]";
+      return "";
+    }
+
+    return summaryResult;
   }
 
   function publishButton() {
     if (publishing) return;
     const tagsplit = tags.split("#").filter((tag) => tag !== "").map((tag) => tag.trim()) || [];
     
-    // 如果没有输入简介，则自动生成含占位符的摘要
+    // 如果没有输入简介，则执行自动提取逻辑
     const finalSummary = summary.trim() === "" ? generateAutoSummary(content) : summary;
 
     setPublishing(true);
