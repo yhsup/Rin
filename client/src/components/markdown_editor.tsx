@@ -1,5 +1,5 @@
 import Editor from '@monaco-editor/react';
-import { editor } from 'monaco-editor';
+import { editor } from 'monaco-editor'; 
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useColorMode } from "../utils/darkModeUtils";
