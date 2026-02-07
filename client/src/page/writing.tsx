@@ -150,50 +150,62 @@ export function WritingPage({ id }: { id?: number }) {
         <title>{`${t('writing')} - ${process.env.NAME}`}</title>
         <style>
           {`
-            /* 1. 定义全局变量，方便同步 */
             :root {
               --editor-fs: ${fontSize};
-              /* 动态计算行高：字号 * 1.5 */
+              /* 动态行高：建议设为字号的 1.5 倍 */
               --editor-lh: calc(${fontSize.replace('px', '')} * 1.5px);
             }
-        
-            /* 2. 核心：强制重置 Monaco 的行高变量 */
-            .monaco-editor {
+      
+            /* 1. 强制重置 Monaco 核心容器 */
+            .monaco-editor, 
+            .monaco-editor .overflow-guard, 
+            .monaco-editor .monaco-scrollable-element {
               --vscode-editor-font-size: var(--editor-fs) !important;
+              --vscode-editor-font-family: ${fontFamily} !important;
+            }
+      
+            /* 2. 修复文字层、选中层、当前行层的高度同步 */
+            .monaco-editor .view-line,
+            .monaco-editor .view-overlays .current-line,
+            .monaco-editor .view-overlays .selected-text,
+            .monaco-editor .lines-content,
+            .monaco-editor .view-lines {
+              height: var(--editor-lh) !important;
               line-height: var(--editor-lh) !important;
             }
-        
-            /* 3. 修复高亮选中块 (Selection) */
-            .monaco-editor .view-overlays .selected-text {
-              height: var(--editor-lh) !important;
+      
+            /* 3. 核心修复：文字渲染层强制继承字体大小 */
+            /* 这能缓解字符宽度计算不一致的问题 */
+            .monaco-editor .view-lines {
+              font-variant-ligatures: none !important;
+              letter-spacing: 0px !important;
             }
-        
-            /* 4. 修复当前行高亮 (Current Line) */
-            .monaco-editor .view-overlays .current-line {
-              height: var(--editor-lh) !important;
-            }
-        
-            /* 5. 所有的文字行、行号、输入框统一同步 */
-            .monaco-editor .view-lines,
-            .monaco-editor .view-line,
-            .monaco-editor .line-numbers,
-            .monaco-editor .lines-content,
-            .monaco-editor .inputarea {
+      
+            .monaco-editor .view-line span {
               font-size: var(--editor-fs) !important;
               font-family: ${fontFamily} !important;
-              line-height: var(--editor-lh) !important;
-              height: var(--editor-lh) !important; /* 关键：行容器高度必须等于行高 */
             }
-        
-            /* 6. 修正行号的对齐 */
+      
+            /* 4. 修复光标太小的问题 */
+            .monaco-editor .cursor {
+              /* 让光标高度略大于字体，增加视觉舒适度 */
+              height: calc(var(--editor-fs) + 4px) !important;
+              width: 2px !important;
+            }
+      
+            /* 5. 修复行号对齐 */
             .monaco-editor .line-numbers {
-              width: calc(var(--editor-fs) * 2) !important;
-              text-align: right !important;
+              font-size: calc(var(--editor-fs) * 0.8) !important;
+              line-height: var(--editor-lh) !important;
+              height: var(--editor-lh) !important;
+            }
+            
+            /* 6. 强制让高亮色块尝试填满容器，减少宽度误差 */
+            .monaco-editor .selected-text {
+              opacity: 0.4 !important;
             }
           `}
         </style>
-        <meta property="og:site_name" content={siteName} />
-        {/* ...其他 meta 保持不变 */}
       </Helmet>
       <div className="grid grid-cols-1 md:grid-cols-3 t-primary mt-2">
         <div className="col-span-2 pb-8">
