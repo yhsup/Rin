@@ -27,7 +27,6 @@ export function MarkdownEditor({
   const isComposingRef = useRef(false);
   const [preview, setPreview] = useState<'edit' | 'preview' | 'comparison'>('edit');
 
-  /* ---------------- 基础样式应用 ---------------- */
   const applyStyle = (type: string) => {
     const editor = editorRef.current;
     if (!editor) return;
@@ -60,7 +59,6 @@ export function MarkdownEditor({
     editor.focus();
   };
 
-  /* ---------------- 生成 n*n 表格逻辑 ---------------- */
   const insertTable = () => {
     const editor = editorRef.current;
     if (!editor) return;
@@ -77,17 +75,12 @@ export function MarkdownEditor({
       return;
     }
 
-    // 构建 Markdown 表格字符串
-    let tableMd = "\n";
-    // 表头
-    tableMd += "| " + Array(cols).fill("Header").join(" | ") + " |\n";
-    // 分隔线
+    // 优化：仅在必要时添加单个换行，防止空行过多
+    let tableMd = "\n| " + Array(cols).fill("Header").join(" | ") + " |\n";
     tableMd += "| " + Array(cols).fill("---").join(" | ") + " |\n";
-    // 内容行
     for (let i = 0; i < rows; i++) {
       tableMd += "| " + Array(cols).fill("Content").join(" | ") + " |\n";
     }
-    tableMd += "\n";
 
     const selection = editor.getSelection();
     if (selection) {
@@ -100,7 +93,6 @@ export function MarkdownEditor({
     editor.focus();
   };
 
-  /* ---------------- 局部字体应用 ---------------- */
   const applyFontFamily = (font: string) => {
     const editor = editorRef.current;
     if (!editor || !font) return;
@@ -119,7 +111,6 @@ export function MarkdownEditor({
     editor.focus();
   };
 
-  /* ---------------- 编辑器装饰与挂载 (保持不变) ---------------- */
   const updateFontDecorations = (editor: editor.IStandaloneCodeEditor, monaco: any) => {
     const model = editor.getModel();
     if (!model) return;
@@ -171,22 +162,14 @@ export function MarkdownEditor({
 
       <div className={`grid grid-cols-1 ${preview === 'comparison' ? "sm:grid-cols-2" : ""}`}>
         <div className={preview === 'preview' ? "hidden" : "flex flex-col"}>
-          {/* 工具栏 */}
           <div className="flex flex-wrap items-center gap-2 mb-2 p-1 bg-gray-50 dark:bg-zinc-900/50 rounded border dark:border-zinc-800">
             <button onClick={() => applyStyle('bold')} className="p-1 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded" title="加粗"><i className="ri-bold" /></button>
             <button onClick={() => applyStyle('italic')} className="p-1 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded" title="斜体"><i className="ri-italic" /></button>
             <button onClick={() => applyStyle('underline')} className="p-1 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded" title="下划线"><i className="ri-underline" /></button>
             <button onClick={() => applyStyle('strikethrough')} className="p-1 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded" title="中划线"><i className="ri-strikethrough" /></button>
-            
             <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
-            
-            {/* 表格按钮 */}
-            <button onClick={insertTable} className="p-1 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded" title="插入表格">
-              <i className="ri-table-line" />
-            </button>
-
+            <button onClick={insertTable} className="p-1 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded" title="插入表格"><i className="ri-table-line" /></button>
             <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
-
             <select 
               className="bg-transparent text-[11px] font-bold text-theme outline-none cursor-pointer max-w-[100px]"
               onChange={(e) => { applyFontFamily(e.target.value); e.target.value = ""; }}
@@ -197,7 +180,6 @@ export function MarkdownEditor({
               <option value="Zhi Mang Xing">手写体</option>
             </select>
           </div>
-
           <div className="border rounded-lg overflow-hidden dark:border-zinc-800">
             <Editor
               onMount={handleEditorMount}
@@ -209,7 +191,6 @@ export function MarkdownEditor({
             />
           </div>
         </div>
-        
         <div className={`px-4 overflow-y-auto border-l dark:border-zinc-800 ${preview === 'edit' ? "hidden" : ""}`} style={{ height }}>
           <Markdown content={content || placeholder} />
         </div>
