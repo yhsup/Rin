@@ -13,9 +13,22 @@ interface MarkdownEditorProps {
   setContent: (content: string) => void;
   placeholder?: string;
   height?: string;
+  // --- 新增 Props ---
+  fontSize?: number;
+  lineHeight?: number;
+  fontFamily?: string;
 }
 
-export function MarkdownEditor({ content, setContent, placeholder = "> Write your content here...", height = "400px" }: MarkdownEditorProps) {
+export function MarkdownEditor({ 
+  content, 
+  setContent, 
+  placeholder = "> Write your content here...", 
+  height = "400px",
+  // --- 默认值 ---
+  fontSize = 14,
+  lineHeight = 21, // 默认 1.5 倍
+  fontFamily = "Sarasa Mono SC, JetBrains Mono, monospace"
+}: MarkdownEditorProps) {
   const { t } = useTranslation();
   const colorMode = useColorMode();
   const editorRef = useRef<editor.IStandaloneCodeEditor>();
@@ -25,22 +38,10 @@ export function MarkdownEditor({ content, setContent, placeholder = "> Write you
 
   function uploadImage(file: File, onSuccess: (url: string) => void, showAlert: (msg: string) => void) {
     client.storage.index
-      .post(
-        {
-          key: file.name,
-          file: file,
-        },
-        {
-          headers: headersWithAuth(),
-        }
-      )
+      .post({ key: file.name, file: file }, { headers: headersWithAuth() })
       .then(({ data, error }) => {
-        if (error) {
-          showAlert(t("upload.failed"));
-        }
-        if (data) {
-          onSuccess(data);
-        }
+        if (error) showAlert(t("upload.failed"));
+        if (data) onSuccess(data);
       })
       .catch((e: any) => {
         console.error(e);
@@ -70,7 +71,6 @@ export function MarkdownEditor({ content, setContent, placeholder = "> Write you
 
   function UploadImageButton() {
     const uploadRef = useRef<HTMLInputElement>(null);
-    
     const upChange = (event: any) => {
       for (let i = 0; i < event.currentTarget.files.length; i++) {
         const file = event.currentTarget.files[i];
@@ -93,64 +93,34 @@ export function MarkdownEditor({ content, setContent, placeholder = "> Write you
         }
       }
     };
-    
     return (
       <button onClick={() => uploadRef.current?.click()}>
-        <input
-          ref={uploadRef}
-          onChange={upChange}
-          className="hidden"
-          type="file"
-          accept="image/gif,image/jpeg,image/jpg,image/png"
-        />
+        <input ref={uploadRef} onChange={upChange} className="hidden" type="file" accept="image/gif,image/jpeg,image/jpg,image/png" />
         <i className="ri-image-add-line" />
       </button>
     );
   }
 
-  /* ---------------- Monaco Mount & IME Optimization ---------------- */
-
   const handleEditorMount = (editor: editor.IStandaloneCodeEditor) => {
     editorRef.current = editor;
-
-    editor.onDidCompositionStart(() => {
-      isComposingRef.current = true;
-    });
-
+    editor.onDidCompositionStart(() => { isComposingRef.current = true; });
     editor.onDidCompositionEnd(() => {
       isComposingRef.current = false;
       setContent(editor.getValue());
     });
-
     editor.onDidChangeModelContent(() => {
-      if (!isComposingRef.current) {
-        setContent(editor.getValue());
-      }
+      if (!isComposingRef.current) setContent(editor.getValue());
     });
-
-    editor.onDidBlurEditorText(() => {
-      setContent(editor.getValue());
-    });
+    editor.onDidBlurEditorText(() => { setContent(editor.getValue()); });
   };
-
-  /* ---------------- synchronization ---------------- */
 
   useEffect(() => {
     const editor = editorRef.current;
     if (!editor) return;
-
     const model = editor.getModel();
     if (!model) return;
-
-    const editorValue = model.getValue();
-
-    // Avoid infinite loops & prevent overwriting content being edited
-    if (editorValue !== content) {
-      editor.setValue(content);
-    }
+    if (model.getValue() !== content) editor.setValue(content);
   }, [content]);
-
-  /* ---------------- UI ---------------- */
 
   return (
     <div className="flex flex-col mx-4 my-2 md:mx-0 md:my-0 gap-2">
@@ -184,10 +154,7 @@ export function MarkdownEditor({ content, setContent, placeholder = "> Write you
                 setUploading(true);
                 uploadImage(file, (url) => {
                   setUploading(false);
-                  editor.executeEdits(undefined, [{
-                    range: selection,
-                    text: `![${file.name}](${url})\n`,
-                  }]);
+                  editor.executeEdits(undefined, [{ range: selection, text: `![${file.name}](${url})\n` }]);
                 }, (msg) => console.error(msg));
               }
             }}
@@ -201,32 +168,29 @@ export function MarkdownEditor({ content, setContent, placeholder = "> Write you
               theme={colorMode === "dark" ? "vs-dark" : "light"}
               options={{
                 wordWrap: "on",
-
-                // Chinese IME stability key
-                fontFamily: "Sarasa Mono SC, JetBrains Mono, monospace",
+                // --- 动态应用字体、字号、行高 ---
+                fontFamily: fontFamily,
+                fontSize: fontSize,
+                lineHeight: lineHeight,
+                
                 fontLigatures: false,
                 letterSpacing: 0,
-
-                fontSize: 14,
                 lineNumbers: "off",
-
                 accessibilitySupport: "off",
                 unicodeHighlight: { ambiguousCharacters: false },
-
                 renderWhitespace: "none",
                 renderControlCharacters: false,
                 smoothScrolling: false,
-
                 dragAndDrop: true,
                 pasteAs: { enabled: false },
+                // 解决选中框溢出的关键配置
+                overflowWidgetsDomNode: undefined, 
+                fixedOverflowWidgets: true,
               }}
             />
           </div>
         </div>
-        <div
-          className={"px-4 overflow-y-scroll " + (preview !== 'edit' ? "" : "hidden")}
-          style={{ height: height }}
-        >
+        <div className={"px-4 overflow-y-scroll " + (preview !== 'edit' ? "" : "hidden")} style={{ height: height }}>
           <Markdown content={content ? content : placeholder} />
         </div>
       </div>
