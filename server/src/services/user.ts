@@ -22,11 +22,9 @@ export function UserService() {
                 })
                 .get("/github/callback", async ({ jwt, oauth2, set, store, query, cookie: { token, redirect_to, state } }) => {
 
-                    console.log('state', state.value)
-                    console.log('p_state', query.state)
-
                     const gh_token = await oauth2.authorize("GitHub");
-                    // request https://api.github.com/user for user info
+                    
+                    // 获取 GitHub 用户原始数据
                     const response = await fetch("https://api.github.com/user", {
                         headers: {
                             Authorization: `Bearer ${gh_token.accessToken}`,
@@ -34,58 +32,54 @@ export function UserService() {
                             "User-Agent": "elysia"
                         },
                     });
-                    const user: any = await response.json();
                     
-                    const profile = {
-                        openid: user.id.toString(),
-                        username: user.name || user.login,
-                        avatar: user.avatar_url,
-                        permission: 0
-                    };
+                    const githubUser: any = await response.json();
+                    const githubId = githubUser.id.toString();
 
-                    // 查找数据库中是否存在该用户
+                    // 1. 查找数据库中是否存在该 openid 的用户
                     const existingUser = await db.query.users.findFirst({ 
-                        where: eq(users.openid, profile.openid) 
+                        where: eq(users.openid, githubId) 
                     });
 
-                    if (existingUser) {
-                        // 【核心修改】：如果用户已存在，仅更新权限，不覆盖从 GitHub 抓取的个人资料
-                        // 这允许您手动在数据库修改昵称/头像后不被还原
-                        await db.update(users)
-                            .set({ 
-                                permission: existingUser.permission 
-                            })
-                            .where(eq(users.id, existingUser.id));
+                    let finalUserId: number;
 
-                        token.set({
-                            value: await jwt.sign({ id: existingUser.id }),
-                            expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
-                            path: '/',
-                        });
+                    if (existingUser) {
+                        // 【绝对保护】：老用户登录直接跳过数据库写入，保持数据库现有资料不变
+                        finalUserId = existingUser.id;
                     } else {
-                        // 如果是新用户，检查是否为系统第一个用户（设为管理员）
+                        // 【仅新用户】：第一次登录时初始化资料
+                        const newProfile = {
+                            openid: githubId,
+                            username: githubUser.name || githubUser.login,
+                            avatar: githubUser.avatar_url,
+                            permission: 0
+                        };
+
+                        // 检查是否为系统第一个用户
                         if (!await store.anyUser(db)) {
                             const realTimeCheck = (await db.query.users.findMany())?.length > 0
                             if (!realTimeCheck) {
-                                profile.permission = 1
+                                newProfile.permission = 1
                                 store.anyUser = async (_: DB) => true
                             }
                         }
                         
                         const result = await db.insert(users)
-                            .values(profile)
+                            .values(newProfile)
                             .returning({ insertedId: users.id });
 
                         if (!result || result.length === 0) {
                             throw new Error('Failed to register');
-                        } else {
-                            token.set({
-                                value: await jwt.sign({ id: result[0].insertedId }),
-                                expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
-                                path: '/',
-                            })
                         }
+                        finalUserId = result[0].insertedId;
                     }
+
+                    // 2. 统一根据用户 ID 签发 JWT
+                    token.set({
+                        value: await jwt.sign({ id: finalUserId }),
+                        expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
+                        path: '/',
+                    });
 
                     const redirect_host = redirect_to.value || ""
                     const redirect_url = (`${redirect_host}/callback?token=${token.value}`);
