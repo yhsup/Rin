@@ -377,11 +377,17 @@ export function Markdown({ content }: { content: string }) {
     <>
       {Content}
       <Lightbox
-        plugins={[Download, Zoom, Counter]}
+        plugins={[Zoom, Counter]} // 1. 这里删掉 Download，下载按钮就彻底消失了
         index={index}
         slides={slides.current}
         open={index >= 0}
         close={() => setIndex(-1)}
+        zoom={{
+          maxZoomPixelRatio: 3,    // 2. 显式设置最大放大倍数
+          scrollToZoom: true,      // 3. 允许滚轮缩放
+          doubleTapAction: "zoom", // 4. 允许手机端双击放大
+          doubleClickAction: "zoom", // 5. 允许电脑端双击放大
+        }}
       />
     </>
   );
