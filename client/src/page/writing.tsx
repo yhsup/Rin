@@ -129,10 +129,42 @@ export function WritingPage({ id }: { id?: number }) {
         <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;700&family=Zhi+Mang+Xing&display=swap" rel="stylesheet" />
         <style>
           {`
-            .vditor-reset, .toc-content, .markdown-content { font-family: ${fontFamily} !important; white-space: pre-wrap !important; word-break: break-all; }
-            .toc-content table { border-collapse: collapse; width: 100%; margin: 16px 0; border: 1px solid #ddd; }
-            .toc-content th, .toc-content td { border: 1px solid #ddd; padding: 8px; }
-            .vditor-reset u, .toc-content u { text-decoration: underline; text-underline-offset: 4px; }
+            /* 基础字体与布局 */
+            .vditor-reset, .toc-content, .markdown-content { 
+              font-family: ${fontFamily} !important; 
+              white-space: pre-wrap !important; 
+              word-break: break-all; 
+            }
+
+            /* --- 彻底修复表格空行问题 --- */
+            
+            /* 1. 强制隐藏渲染引擎生成的空段落和多余换行 */
+            .toc-content p:empty,
+            .toc-content > br,
+            .markdown-content p:empty,
+            .markdown-content > br { 
+              display: none !important; 
+            }
+
+            /* 2. 优化表格样式，移除可能导致视觉空隙的巨大 margin */
+            .toc-content table { 
+              border-collapse: collapse; 
+              width: 100%; 
+              margin: 8px 0 !important; /* 紧凑的上下边距 */
+              border: 1px solid #ddd;
+            }
+
+            /* 3. 修复表格内部单元格样式 */
+            .toc-content th, .toc-content td { 
+              border: 1px solid #ddd; 
+              padding: 8px; 
+            }
+
+            /* 4. 其它格式化样式 */
+            .vditor-reset u, .toc-content u { 
+              text-decoration: underline; 
+              text-underline-offset: 4px; 
+            }
           `}
         </style>
       </Helmet>
