@@ -18,6 +18,7 @@ import Zoom from "yet-another-react-lightbox/plugins/zoom";
 import "yet-another-react-lightbox/styles.css";
 import { useColorMode } from "../utils/darkModeUtils";
 
+// --- 工具函数：计算节点前的换行符数量 ---
 const countNewlinesBeforeNode = (text: string, offset: number) => {
   let newlinesBefore = 0;
   for (let i = offset - 1; i >= 0; i--) {
@@ -30,6 +31,7 @@ const countNewlinesBeforeNode = (text: string, offset: number) => {
   return newlinesBefore;
 };
 
+// --- 工具函数：判断是否是行末的图片链接 ---
 const isMarkdownImageLinkAtEnd = (text: string) => {
   const trimmed = text.trim();
   const match = trimmed.match(/(.*)(!\\[.*?\\]\\(.*?\\))$/s);
@@ -40,34 +42,33 @@ const isMarkdownImageLinkAtEnd = (text: string) => {
   return false;
 };
 
-// --- 样式解析补丁：处理字体映射与布局修正 ---
+// --- 样式解析补丁：确保 React 能识别字符串样式 ---
 const parseInlineStyle = (style: any): React.CSSProperties => {
   if (typeof style !== 'string') return style || {};
   const styleObj: any = {};
-  
   style.split(';').forEach(rule => {
     const [key, value] = rule.split(':');
     if (key && value) {
       const camelKey = key.trim().replace(/-([a-z])/g, g => g[1].toUpperCase());
-      let finalValue = value.trim().replace(/&quot;/g, '').replace(/"/g, '');
+      let finalValue = value.trim().replace(/&quot;/g, '"').replace(/"/g, '');
       
-      // 1. 字体强制映射 (处理 Zhi Mang Xing 等)
+      // 字体映射
       if (camelKey === 'fontFamily') {
         if (finalValue.includes('Zhi Mang Xing')) finalValue = "'Zhi Mang Xing', cursive";
         else if (finalValue.includes('Ma Shan Zheng')) finalValue = "'Ma Shan Zheng', cursive";
         else if (finalValue.includes('Noto Serif SC')) finalValue = "'Noto Serif SC', serif";
+        else finalValue = `"${finalValue}"`;
       }
-
-      // 2. 布局修正：如果有行高、字号或特定字体，强制 inline-block
       styleObj[camelKey] = finalValue;
     }
   });
 
+  // 强制 inline-block 否则行高和字号在 span 上无效
   if (styleObj.fontSize || styleObj.lineHeight || styleObj.fontFamily) {
     styleObj.display = 'inline-block';
     styleObj.maxWidth = '100%';
+    styleObj.verticalAlign = 'baseline';
   }
-  
   return styleObj;
 };
 
@@ -75,17 +76,44 @@ export function Markdown({ content }: { content: string }) {
   const colorMode = useColorMode();
   const [index, setIndex] = React.useState(-1);
   const slides = useRef<SlideImage[]>();
+  const containerRef = useRef<HTMLDivElement>(null);
 
+  // --- 核心：DOM 暴力监听修正逻辑 ---
   useEffect(() => {
-    slides.current = undefined;
+    const fixStyles = () => {
+      if (!containerRef.current) return;
+      const elements = containerRef.current.querySelectorAll('.toc-content [style]');
+      elements.forEach((el) => {
+        const target = el as HTMLElement;
+        const rawStyle = target.getAttribute('style') || '';
+        
+        // 如果包含字体，直接通过 JS 赋予最高优先级样式
+        if (rawStyle.includes('Zhi Mang Xing')) target.style.fontFamily = "'Zhi Mang Xing', cursive";
+        if (rawStyle.includes('Noto Serif SC')) target.style.fontFamily = "'Noto Serif SC', serif";
+        if (rawStyle.includes('Ma Shan Zheng')) target.style.fontFamily = "'Ma Shan Zheng', cursive";
+        
+        // 强制布局
+        if (rawStyle.includes('font-size') || rawStyle.includes('line-height') || rawStyle.includes('font-family')) {
+          target.style.display = 'inline-block';
+          target.style.maxWidth = '100%';
+        }
+      });
+    };
+
+    fixStyles();
+    // 监听动态加载的内容
+    const observer = new MutationObserver(fixStyles);
+    if (containerRef.current) {
+      observer.observe(containerRef.current, { childList: true, subtree: true });
+    }
+    return () => observer.disconnect();
   }, [content]);
 
   const show = (src: string | undefined) => {
     let slidesLocal = slides.current;
     if (!slidesLocal) {
-      const parent = document.getElementsByClassName("toc-content")[0];
-      if (!parent) return;
-      const images = parent.querySelectorAll("img");
+      if (!containerRef.current) return;
+      const images = containerRef.current.querySelectorAll("img");
       slidesLocal = Array.from(images).map((image) => {
         const url = image.getAttribute("src") || "";
         return {
@@ -102,7 +130,7 @@ export function Markdown({ content }: { content: string }) {
   };
 
   const Content = useMemo(() => (
-    <div className="markdown-render-wrapper">
+    <div ref={containerRef} className="markdown-render-wrapper">
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;700&family=Zhi+Mang+Xing&display=swap');
         
@@ -112,9 +140,11 @@ export function Markdown({ content }: { content: string }) {
           line-height: 1.6;
         }
 
-        /* 基础样式兜底 */
-        .toc-content p {
-          margin-bottom: 0.5em;
+        /* 强制覆盖内联 display: inline */
+        .toc-content span[style] {
+          display: inline-block !important;
+          max-width: 100%;
+          text-indent: 0;
         }
       `}</style>
 
@@ -124,15 +154,9 @@ export function Markdown({ content }: { content: string }) {
         children={content}
         rehypePlugins={[rehypeKatex, rehypeRaw]}
         components={{
-          p({ children, style, node, ...props }) {
-            return <p style={parseInlineStyle(style)} className="my-2" {...props}>{children}</p>;
-          },
-          span({ children, style, node, ...props }) {
-            return <span style={parseInlineStyle(style)} {...props}>{children}</span>;
-          },
-          div({ children, style, node, ...props }) {
-            return <div style={parseInlineStyle(style)} {...props}>{children}</div>;
-          },
+          p: ({ node, style, ...props }) => <p className="my-2" style={parseInlineStyle(style)} {...props} />,
+          span: ({ node, style, ...props }) => <span style={parseInlineStyle(style)} {...props} />,
+          div: ({ node, style, ...props }) => <div style={parseInlineStyle(style)} {...props} />,
           img({ node, src, ...props }) {
             const offset = node?.position?.start.offset ?? 0;
             const previousContent = content.slice(0, offset);
@@ -187,11 +211,6 @@ export function Markdown({ content }: { content: string }) {
           },
           blockquote: ({children, ...props}) => <blockquote className="border-l-4 border-gray-300 pl-4 italic" {...props}>{children}</blockquote>,
           a: ({children, ...props}) => <a className="text-[#0686c8] hover:underline" {...props}>{children}</a>,
-          ul: ({children, className, ...props}) => <ul className={className?.includes("contains-task-list") ? "list-none pl-5" : "list-disc pl-5 mt-2"} {...props}>{children}</ul>,
-          ol: ({children, ...props}) => <ol className="list-decimal pl-5" {...props}>{children}</ol>,
-          h1: ({children, ...props}) => <h1 className="text-3xl font-bold mt-4" {...props}>{children}</h1>,
-          h2: ({children, ...props}) => <h2 className="text-2xl font-bold mt-4" {...props}>{children}</h2>,
-          h3: ({children, ...props}) => <h3 className="text-xl font-bold mt-4" {...props}>{children}</h3>,
         }}
       />
     </div>
