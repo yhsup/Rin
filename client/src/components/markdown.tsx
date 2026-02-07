@@ -42,6 +42,20 @@ const isMarkdownImageLinkAtEnd = (text: string) => {
   return false;
 };
 
+// --- 核心补丁：将 HTML Style 字符串转换为 React 对象 ---
+const parseInlineStyle = (style: any): React.CSSProperties => {
+  if (typeof style !== 'string') return style || {};
+  const styleObj: any = {};
+  style.split(';').forEach(rule => {
+    const [key, value] = rule.split(':');
+    if (key && value) {
+      const camelKey = key.trim().replace(/-([a-z])/g, g => g[1].toUpperCase());
+      styleObj[camelKey] = value.trim().replace(/&quot;/g, '"');
+    }
+  });
+  return styleObj;
+};
+
 export function Markdown({ content }: { content: string }) {
   const colorMode = useColorMode();
   const [index, setIndex] = React.useState(-1);
@@ -51,7 +65,6 @@ export function Markdown({ content }: { content: string }) {
     slides.current = undefined;
   }, [content]);
 
-  // 图片点击查看逻辑
   const show = (src: string | undefined) => {
     let slidesLocal = slides.current;
     if (!slidesLocal) {
@@ -64,10 +77,7 @@ export function Markdown({ content }: { content: string }) {
           src: url,
           alt: image.getAttribute("alt") || "",
           imageFit: "contain" as const,
-          download: { 
-            url: url, 
-            filename: url.split("/").pop() || "image" 
-          },
+          download: { url, filename: url.split("/").pop() || "image" },
         };
       }).filter((slide) => slide.src !== "");
       slides.current = slidesLocal;
@@ -86,13 +96,7 @@ export function Markdown({ content }: { content: string }) {
           word-break: break-word;
         }
 
-        /* 确保内联样式生效 */
-        .toc-content span[style], .toc-content p[style] {
-          display: inline-block;
-          max-width: 100%;
-        }
-
-        /* 字体补丁 */
+        /* 字体补丁：确保 Google Fonts 优先级最高 */
         [style*="Ma Shan Zheng"] { font-family: 'Ma Shan Zheng', cursive !important; }
         [style*="Zhi Mang Xing"] { font-family: 'Zhi Mang Xing', cursive !important; }
         [style*="Noto Serif SC"] { font-family: 'Noto Serif SC', serif !important; }
@@ -104,25 +108,34 @@ export function Markdown({ content }: { content: string }) {
         children={content}
         rehypePlugins={[rehypeKatex, rehypeRaw]}
         components={{
-          // 处理样式透传
+          // 样式透传核心组件
           p({ children, style, ...props }) {
-            return <p style={style} className="my-2" {...props}>{children}</p>;
+            return <p style={parseInlineStyle(style)} className="my-2" {...props}>{children}</p>;
           },
           span({ children, style, ...props }) {
-            return <span style={style} {...props}>{children}</span>;
+            const s = parseInlineStyle(style);
+            return (
+              <span 
+                style={{
+                  ...s,
+                  display: (s.fontSize || s.lineHeight) ? 'inline-block' : 'inline',
+                  maxWidth: '100%'
+                }} 
+                {...props}
+              >
+                {children}
+              </span>
+            );
           },
           div({ children, style, ...props }) {
-            return <div style={style} {...props}>{children}</div>;
+            return <div style={parseInlineStyle(style)} {...props}>{children}</div>;
           },
-          // 图片处理逻辑
+          // 图片处理
           img({ node, src, ...props }) {
             const offset = node?.position?.start.offset ?? 0;
             const previousContent = content.slice(0, offset);
             const newlinesBefore = countNewlinesBeforeNode(previousContent, offset);
-            
-            const isBlock = newlinesBefore >= 1 || 
-                            previousContent.trim().length === 0 || 
-                            isMarkdownImageLinkAtEnd(previousContent);
+            const isBlock = newlinesBefore >= 1 || previousContent.trim().length === 0 || isMarkdownImageLinkAtEnd(previousContent);
 
             return (
               <span className={isBlock ? "block w-full text-center my-4" : "inline-block align-middle mx-1"}>
@@ -136,7 +149,7 @@ export function Markdown({ content }: { content: string }) {
               </span>
             );
           },
-          // 代码块
+          // 代码高亮
           code(props) {
             const [copied, setCopied] = React.useState(false);
             const { children, className, node, ...rest } = props;
@@ -171,7 +184,7 @@ export function Markdown({ content }: { content: string }) {
             }
             return <code {...rest} className={`bg-[#eff1f3] dark:bg-[#4a5061] px-[4px] rounded-md`} style={{...codeStyle, fontSize: "13px"}}>{children}</code>;
           },
-          // 基础标签
+          // 其他基础 HTML 标签
           blockquote: ({children, ...props}) => <blockquote className="border-l-4 border-gray-300 pl-4 italic" {...props}>{children}</blockquote>,
           a: ({children, ...props}) => <a className="text-[#0686c8] hover:underline" {...props}>{children}</a>,
           ul: ({children, className, ...props}) => <ul className={className?.includes("contains-task-list") ? "list-none pl-5" : "list-disc pl-5 mt-2"} {...props}>{children}</ul>,
