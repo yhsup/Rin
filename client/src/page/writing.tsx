@@ -61,7 +61,7 @@ export function WritingPage({ id }: { id?: number }) {
     setPublishing(true);
     const tagsplit = tags.split("#").filter(tag => tag.trim() !== "").map(tag => tag.trim());
     
-    const payload = { title, content, summary, tags: tagsplit, draft, alias, listed, createdAt };
+    const payload = { title, content, summary, tags: tagsplit, draft, alias, listed, createdAt: createdAt || new Date() };
     
     const { data, error } = id 
       ? await client.feed({ id }).post(payload, { headers: headersWithAuth() })
@@ -81,18 +81,18 @@ export function WritingPage({ id }: { id?: number }) {
   function MetaFields() {
     return (
       <div className="flex flex-col gap-4">
-        <Input id={id} value={summary} setValue={setSummary} placeholder={t("summary")} />
-        <Input id={id} value={tags} setValue={setTags} placeholder={t("tags")} />
-        <Input id={id} value={alias} setValue={setAlias} placeholder={t("alias")} />
+        <Input id="summary" value={summary} setValue={setSummary} placeholder={t("summary")} />
+        <Input id="tags" value={tags} setValue={setTags} placeholder={t("tags")} />
+        <Input id="alias" value={alias} setValue={setAlias} placeholder={t("alias")} />
         
         <div className="flex items-center justify-between px-2 py-1 cursor-pointer select-none" onClick={() => setDraft(!draft)}>
           <span className="text-sm">{t("visible.self_only")}</span>
-          <Checkbox id="draft" value={draft} setValue={setDraft} />
+          <Checkbox id="draft" value={draft} setValue={setDraft} placeholder={t("draft")} />
         </div>
 
         <div className="flex items-center justify-between px-2 py-1 cursor-pointer select-none" onClick={() => setListed(!listed)}>
           <span className="text-sm">{t("listed")}</span>
-          <Checkbox id="listed" value={listed} setValue={setListed} />
+          <Checkbox id="listed" value={listed} setValue={setListed} placeholder={t("listed")} />
         </div>
 
         <div className="flex flex-col gap-1">
@@ -102,7 +102,8 @@ export function WritingPage({ id }: { id?: number }) {
 
         <button 
           onClick={handlePublish}
-          className="w-full bg-theme text-white py-3 rounded-xl shadow-lg flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
+          disabled={publishing}
+          className="w-full bg-theme text-white py-3 rounded-xl shadow-lg flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50"
         >
           {publishing && <Loading type="spin" width={16} height={16} color="#fff" />}
           {id ? t("update.title") : t("publish.title")}
@@ -129,22 +130,31 @@ export function WritingPage({ id }: { id?: number }) {
         {/* 左侧编辑器区 */}
         <div className="md:col-span-2 space-y-4">
           <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl p-4 border dark:border-zinc-800">
-            {/* 排版工具 */}
+            {/* 全局排版工具 */}
             <div className="flex gap-4 mb-4 text-[10px] uppercase tracking-wider text-neutral-500 border-b pb-2 dark:border-zinc-800">
               <label>字号: 
-                <select value={fontSize} onChange={e => { setFontSize(e.target.value); localStorage.setItem('rin-fontSize', e.target.value); }} className="bg-transparent text-theme font-bold ml-1">
-                  {['14px', '16px', '18px', '20px'].map(v => <option key={v} value={v}>{v}</option>)}
+                <select 
+                    value={fontSize} 
+                    onChange={e => { setFontSize(e.target.value); localStorage.setItem('rin-fontSize', e.target.value); }} 
+                    className="bg-transparent text-theme font-bold ml-1 outline-none"
+                >
+                  {['14px', '16px', '18px', '20px', '24px'].map(v => <option key={v} value={v}>{v}</option>)}
                 </select>
               </label>
               <label>全局字体: 
-                <select value={fontFamily} onChange={e => { setFontFamily(e.target.value); localStorage.setItem('rin-fontFamily', e.target.value); }} className="bg-transparent text-theme font-bold ml-1">
+                <select 
+                    value={fontFamily} 
+                    onChange={e => { setFontFamily(e.target.value); localStorage.setItem('rin-fontFamily', e.target.value); }} 
+                    className="bg-transparent text-theme font-bold ml-1 outline-none"
+                >
                   <option value="Sarasa Mono SC">更纱等宽</option>
                   <option value="Noto Serif SC">思源宋体</option>
+                  <option value="system-ui">系统默认</option>
                 </select>
               </label>
             </div>
 
-            <Input id={id} value={title} setValue={setTitle} placeholder={t("title")} className="mb-4 text-2xl font-bold border-none !px-0 focus:ring-0" />
+            <Input id="title" value={title} setValue={setTitle} placeholder={t("title")} className="mb-4 text-2xl font-bold border-none !px-0 focus:ring-0" />
             
             <MarkdownEditor 
               key={`${fontSize}-${fontFamily}`}
