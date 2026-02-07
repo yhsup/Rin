@@ -75,21 +75,30 @@ export function MarkdownEditor({
       return;
     }
 
-    // 优化：仅在必要时添加单个换行，防止空行过多
-    let tableMd = "\n| " + Array(cols).fill("Header").join(" | ") + " |\n";
+    const model = editor.getModel();
+    const selection = editor.getSelection();
+    if (!model || !selection) return;
+
+    // --- 智能换行处理 ---
+    // 获取光标前的字符，判断是否需要换行
+    const lineBefore = model.getLineContent(selection.startLineNumber).trim();
+    const needsBeforeNewline = lineBefore !== ""; 
+
+    // 构建表格内容
+    let tableMd = needsBeforeNewline ? "\n\n" : ""; 
+    tableMd += "| " + Array(cols).fill("Header").join(" | ") + " |\n";
     tableMd += "| " + Array(cols).fill("---").join(" | ") + " |\n";
     for (let i = 0; i < rows; i++) {
       tableMd += "| " + Array(cols).fill("Content").join(" | ") + " |\n";
     }
 
-    const selection = editor.getSelection();
-    if (selection) {
-      editor.executeEdits("table-inserter", [{
-        range: selection,
-        text: tableMd,
-        forceMoveMarkers: true
-      }]);
-    }
+    // 执行插入
+    editor.executeEdits("table-inserter", [{
+      range: selection,
+      text: tableMd,
+      forceMoveMarkers: true
+    }]);
+    
     editor.focus();
   };
 
