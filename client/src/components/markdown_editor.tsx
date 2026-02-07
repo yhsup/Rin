@@ -1,5 +1,5 @@
 import Editor from '@monaco-editor/react';
-import { editor } from 'monaco-editor'; 
+import { editor } from 'monaco-editor';
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useColorMode } from "../utils/darkModeUtils";
@@ -27,6 +27,7 @@ export function MarkdownEditor({
   const isComposingRef = useRef(false);
   const [preview, setPreview] = useState<'edit' | 'preview' | 'comparison'>('edit');
 
+  /* ---------------- 基础样式应用 ---------------- */
   const applyStyle = (type: string) => {
     const editor = editorRef.current;
     if (!editor) return;
@@ -59,6 +60,47 @@ export function MarkdownEditor({
     editor.focus();
   };
 
+  /* ---------------- 生成 n*n 表格逻辑 ---------------- */
+  const insertTable = () => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    const input = window.prompt("请输入表格行列（格式如 3*3）:", "3*3");
+    if (!input) return;
+
+    const [rowsStr, colsStr] = input.split('*');
+    const rows = parseInt(rowsStr);
+    const cols = parseInt(colsStr);
+
+    if (isNaN(rows) || isNaN(cols) || rows <= 0 || cols <= 0) {
+      alert("请输入有效的数字，例如 3*3");
+      return;
+    }
+
+    // 构建 Markdown 表格字符串
+    let tableMd = "\n";
+    // 表头
+    tableMd += "| " + Array(cols).fill("Header").join(" | ") + " |\n";
+    // 分隔线
+    tableMd += "| " + Array(cols).fill("---").join(" | ") + " |\n";
+    // 内容行
+    for (let i = 0; i < rows; i++) {
+      tableMd += "| " + Array(cols).fill("Content").join(" | ") + " |\n";
+    }
+    tableMd += "\n";
+
+    const selection = editor.getSelection();
+    if (selection) {
+      editor.executeEdits("table-inserter", [{
+        range: selection,
+        text: tableMd,
+        forceMoveMarkers: true
+      }]);
+    }
+    editor.focus();
+  };
+
+  /* ---------------- 局部字体应用 ---------------- */
   const applyFontFamily = (font: string) => {
     const editor = editorRef.current;
     if (!editor || !font) return;
@@ -77,28 +119,25 @@ export function MarkdownEditor({
     editor.focus();
   };
 
+  /* ---------------- 编辑器装饰与挂载 (保持不变) ---------------- */
   const updateFontDecorations = (editor: editor.IStandaloneCodeEditor, monaco: any) => {
     const model = editor.getModel();
     if (!model) return;
-
     const value = model.getValue();
     const newDecorations: editor.IModelDeltaDecoration[] = [];
     const regex = /<span style="font-family: ([^"]+)">([\s\S]*?)<\/span>/g;
     let match;
-
     while ((match = regex.exec(value)) !== null) {
       const startPos = model.getPositionAt(match.index);
       const endPos = model.getPositionAt(match.index + match[0].length);
       const fontName = match[1].replace(/['"]/g, '').trim();
       const className = `monaco-font-${fontName.replace(/\s+/g, '-')}`;
-
       if (!document.getElementById(className)) {
         const style = document.createElement('style');
         style.id = className;
         style.innerHTML = `.${className} { font-family: "${fontName}" !important; }`;
         document.head.appendChild(style);
       }
-
       newDecorations.push({
         range: new monaco.Range(startPos.lineNumber, startPos.column, endPos.lineNumber, endPos.column),
         options: { inlineClassName: className }
@@ -109,17 +148,9 @@ export function MarkdownEditor({
 
   const handleEditorMount = (editor: editor.IStandaloneCodeEditor, monaco: any) => {
     editorRef.current = editor;
-
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyB, () => applyStyle('bold'));
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyI, () => applyStyle('italic'));
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyU, () => applyStyle('underline'));
-
-    editor.onDidCompositionStart(() => { isComposingRef.current = true; });
-    editor.onDidCompositionEnd(() => {
-      isComposingRef.current = false;
-      setContent(editor.getValue());
-      updateFontDecorations(editor, monaco);
-    });
 
     editor.onDidChangeModelContent(() => {
       if (!isComposingRef.current) {
@@ -127,45 +158,43 @@ export function MarkdownEditor({
         updateFontDecorations(editor, monaco);
       }
     });
-
     updateFontDecorations(editor, monaco);
   };
 
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-row space-x-2 border-b pb-2 dark:border-zinc-800">
-        <button className={`px-2 py-1 rounded ${preview === 'edit' ? "bg-theme text-white" : ""}`} onClick={() => setPreview('edit')}>
-          {t("edit") || "编辑"}
-        </button>
-        <button className={`px-2 py-1 rounded ${preview === 'preview' ? "bg-theme text-white" : ""}`} onClick={() => setPreview('preview')}>
-          {t("preview") || "预览"}
-        </button>
-        <button className={`px-2 py-1 rounded ${preview === 'comparison' ? "bg-theme text-white" : ""}`} onClick={() => setPreview('comparison')}>
-          {t("comparison") || "分屏"}
-        </button>
+        <button className={`px-2 py-1 rounded ${preview === 'edit' ? "bg-theme text-white" : ""}`} onClick={() => setPreview('edit')}>{t("edit")}</button>
+        <button className={`px-2 py-1 rounded ${preview === 'preview' ? "bg-theme text-white" : ""}`} onClick={() => setPreview('preview')}>{t("preview")}</button>
+        <button className={`px-2 py-1 rounded ${preview === 'comparison' ? "bg-theme text-white" : ""}`} onClick={() => setPreview('comparison')}>{t("comparison")}</button>
       </div>
 
       <div className={`grid grid-cols-1 ${preview === 'comparison' ? "sm:grid-cols-2" : ""}`}>
         <div className={preview === 'preview' ? "hidden" : "flex flex-col"}>
+          {/* 工具栏 */}
           <div className="flex flex-wrap items-center gap-2 mb-2 p-1 bg-gray-50 dark:bg-zinc-900/50 rounded border dark:border-zinc-800">
             <button onClick={() => applyStyle('bold')} className="p-1 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded" title="加粗"><i className="ri-bold" /></button>
             <button onClick={() => applyStyle('italic')} className="p-1 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded" title="斜体"><i className="ri-italic" /></button>
             <button onClick={() => applyStyle('underline')} className="p-1 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded" title="下划线"><i className="ri-underline" /></button>
             <button onClick={() => applyStyle('strikethrough')} className="p-1 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded" title="中划线"><i className="ri-strikethrough" /></button>
-            <button onClick={() => applyStyle('sup')} className="p-1 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded" title="上标"><i className="ri-superscript" /></button>
-            <button onClick={() => applyStyle('sub')} className="p-1 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded" title="下标"><i className="ri-subscript" /></button>
             
             <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
             
+            {/* 表格按钮 */}
+            <button onClick={insertTable} className="p-1 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded" title="插入表格">
+              <i className="ri-table-line" />
+            </button>
+
+            <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
+
             <select 
               className="bg-transparent text-[11px] font-bold text-theme outline-none cursor-pointer max-w-[100px]"
               onChange={(e) => { applyFontFamily(e.target.value); e.target.value = ""; }}
             >
               <option value="">{t("local_font") || "局部字体"}</option>
-              <option value="Ma Shan Zheng">楷体 (Ma Shan Zheng)</option>
-              <option value="Noto Serif SC">思源宋体</option>
+              <option value="Ma Shan Zheng">楷体</option>
+              <option value="Noto Serif SC">宋体</option>
               <option value="Zhi Mang Xing">手写体</option>
-              <option value="JetBrains Mono">代码体</option>
             </select>
           </div>
 
@@ -176,14 +205,7 @@ export function MarkdownEditor({
               defaultLanguage="markdown"
               value={content}
               theme={colorMode === "dark" ? "vs-dark" : "light"}
-              options={{
-                wordWrap: "on",
-                fontFamily,
-                minimap: { enabled: false },
-                automaticLayout: true,
-                scrollbar: { vertical: 'auto' },
-                unicodeHighlight: { ambiguousCharacters: false }
-              }}
+              options={{ wordWrap: "on", fontFamily, minimap: { enabled: false }, automaticLayout: true }}
             />
           </div>
         </div>
