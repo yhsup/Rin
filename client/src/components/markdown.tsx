@@ -1,5 +1,5 @@
 import "katex/dist/katex.min.css";
-import React, { cloneElement, isValidElement, useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import {
@@ -54,21 +54,18 @@ export function Markdown({ content }: { content: string }) {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;700&family=Zhi+Mang+Xing&display=swap');
         
-        /* 核心修复：容器不再强制全局 pre-wrap */
         .toc-content {
           word-break: break-word;
           line-height: 1.6;
           white-space: normal !important; 
         }
 
-        /* 仅对段落应用 pre-wrap，保留用户的手动换行感 */
         .toc-content p {
           white-space: pre-wrap !important;
           margin-top: 0.5rem;
           margin-bottom: 0.5rem;
         }
 
-        /* 表格区域彻底禁用 pre-wrap，消除幽灵空行 */
         .toc-content table {
           white-space: normal !important;
           border-collapse: collapse;
@@ -171,7 +168,6 @@ export function Markdown({ content }: { content: string }) {
               );
             }
           },
-          // --- 修复表格 node="[object Object]" 问题 ---
           table: ({ node, ...props }) => <table className="table" {...props} />,
           th: ({ node, ...props }) => (
             <th className="px-4 py-2 border bg-gray-600 font-bold text-white" {...props} />
