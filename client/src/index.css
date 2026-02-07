@@ -31,11 +31,18 @@ textarea:focus {
   @apply bg-w;
 }
 
+/* 修改后的图片样式：集成了圆角、居中以及安全防护 */
 .wmde-markdown img {
   @apply rounded-lg;
   display: block;
   margin-left: auto;
   margin-right: auto;
+
+  /* --- 安全防护增强 --- */
+  -webkit-touch-callout: none !important; /* 禁止 iOS 长按弹出保存图片菜单 */
+  -webkit-user-drag: none !important;     /* 禁止鼠标拖拽图片 */
+  user-select: none !important;           /* 禁止选中图片 */
+  pointer-events: auto;                   /* 确保点击放大功能依然可用 */
 }
 
 ol {
