@@ -22,13 +22,12 @@ export function UserService() {
                 })
                 .get("/github/callback", async ({ jwt, oauth2, set, cookie: { token, redirect_to } }) => {
                     
-                    // ============= 调试断点 =============
-                    // 编译通过后部署，登录时若看到此报错，说明部署已生效
+                    // ============= 部署验证断点 =============
+                    // 只要看到这个报错，就证明“老代码”已被彻底替换。
                     throw new Error("DEPLOY_SUCCESS_CHECK"); 
-                    // ===================================
+                    // =======================================
 
                     const gh_token = await oauth2.authorize("GitHub");
-                    
                     const response = await fetch("https://api.github.com/user", {
                         headers: {
                             Authorization: `Bearer ${gh_token.accessToken}`,
@@ -44,35 +43,32 @@ export function UserService() {
                         where: eq(users.openid, githubId) 
                     });
 
-                    let finalUserId: number;
+                    let finalUserId: number | undefined;
 
-                    // 使用强校验逻辑，确保 TypeScript 满意
-                    if (existingUser && typeof existingUser.id === 'number') {
-                        // 老用户逻辑：直接读取 ID，不执行 update
-                        finalUserId = existingUser.id;
+                    // 这里的逻辑确保 TS 能够识别 existingUser 绝对存在
+                    if (existingUser) {
+                        const { id } = existingUser;
+                        finalUserId = id;
                     } else {
-                        // 新用户或锁定逻辑
                         const allUsers = await db.query.users.findMany();
                         if (allUsers && allUsers.length > 0) {
                             throw new Error('系统已锁定：仅允许管理员登录。');
                         }
 
-                        const newProfile = {
-                            openid: githubId,
-                            username: githubUser.name || githubUser.login,
-                            avatar: githubUser.avatar_url,
-                            permission: 1 
-                        };
-                        
                         const result = await db.insert(users)
-                            .values(newProfile)
+                            .values({
+                                openid: githubId,
+                                username: githubUser.name || githubUser.login,
+                                avatar: githubUser.avatar_url,
+                                permission: 1 
+                            })
                             .returning({ insertedId: users.id });
 
-                        const insertedId = result?.[0]?.insertedId;
-                        if (typeof insertedId !== 'number') {
-                            throw new Error('Failed to register: No ID returned');
-                        }
-                        finalUserId = insertedId;
+                        finalUserId = result?.[0]?.insertedId;
+                    }
+
+                    if (typeof finalUserId !== 'number') {
+                        throw new Error('Failed to resolve User ID');
                     }
 
                     token.set({
@@ -82,9 +78,8 @@ export function UserService() {
                     });
 
                     const redirect_host = redirect_to.value || ""
-                    const redirect_url = (`${redirect_host}/callback?token=${token.value}`);
                     set.headers = { 'Content-Type': 'text/html' }
-                    set.redirect = redirect_url
+                    set.redirect = `${redirect_host}/callback?token=${token.value}`
                 }, {
                     query: t.Object({
                         state: t.String(),
@@ -96,8 +91,7 @@ export function UserService() {
                         set.status = 403
                         return 'Permission denied'
                     }
-                    const uid_num = parseInt(uid)
-                    const user = await db.query.users.findFirst({ where: eq(users.id, uid_num) })
+                    const user = await db.query.users.findFirst({ where: eq(users.id, parseInt(uid)) })
                     if (!user) {
                         set.status = 404
                         return 'User not found'
