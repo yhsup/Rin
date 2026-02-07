@@ -16,17 +16,10 @@ import {siteName} from "../utils/constants";
 import mermaid from 'mermaid';
 import { MarkdownEditor } from '../components/markdown_editor';
 
-// --- 发布文章函数 ---
-async function publish({
-  title, alias, listed, content, summary, tags, draft, createdAt, onCompleted, showAlert
-}: {
-  title: string; listed: boolean; content: string; summary: string; tags: string[]; draft: boolean; alias?: string; createdAt?: Date; onCompleted?: () => void; showAlert: ShowAlertType;
-}) {
-  const t = i18n.t
-  const { data, error } = await client.feed.index.post(
-    { title, alias, content, summary, tags, listed, draft, createdAt },
-    { headers: headersWithAuth() }
-  );
+// --- 发布与更新函数保持不变 ---
+async function publish({ title, alias, listed, content, summary, tags, draft, createdAt, onCompleted, showAlert }: { title: string; listed: boolean; content: string; summary: string; tags: string[]; draft: boolean; alias?: string; createdAt?: Date; onCompleted?: () => void; showAlert: ShowAlertType; }) {
+  const t = i18n.t;
+  const { data, error } = await client.feed.index.post({ title, alias, content, summary, tags, listed, draft, createdAt }, { headers: headersWithAuth() });
   if (onCompleted) onCompleted();
   if (error) showAlert(error.value as string);
   if (data && typeof data !== "string") {
@@ -37,26 +30,15 @@ async function publish({
   }
 }
 
-// --- 更新文章函数 ---
-async function update({
-  id, title, alias, content, summary, tags, listed, draft, createdAt, onCompleted, showAlert
-}: {
-  id: number; listed: boolean; title?: string; alias?: string; content?: string; summary?: string; tags?: string[]; draft?: boolean; createdAt?: Date; onCompleted?: () => void; showAlert: ShowAlertType;
-}) {
-  const t = i18n.t
-  const { error } = await client.feed({ id }).post(
-    { title, alias, content, summary, tags, listed, draft, createdAt },
-    { headers: headersWithAuth() }
-  );
+async function update({ id, title, alias, content, summary, tags, listed, draft, createdAt, onCompleted, showAlert }: { id: number; listed: boolean; title?: string; alias?: string; content?: string; summary?: string; tags?: string[]; draft?: boolean; createdAt?: Date; onCompleted?: () => void; showAlert: ShowAlertType; }) {
+  const t = i18n.t;
+  const { error } = await client.feed({ id }).post({ title, alias, content, summary, tags, listed, draft, createdAt }, { headers: headersWithAuth() });
   if (onCompleted) onCompleted();
-  if (error) {
-    showAlert(error.value as string);
-  } else {
-    showAlert(t("update.success"), () => {
-      Cache.with(id).clear();
-      window.location.href = "/feed/" + id;
-    });
-  }
+  if (error) showAlert(error.value as string);
+  else showAlert(t("update.success"), () => {
+    Cache.with(id).clear();
+    window.location.href = "/feed/" + id;
+  });
 }
 
 export function WritingPage({ id }: { id?: number }) {
@@ -70,21 +52,21 @@ export function WritingPage({ id }: { id?: number }) {
   const [listed, setListed] = useState(true);
   const [content, setContent] = cache.useCache("content", "");
   const [createdAt, setCreatedAt] = useState<Date | undefined>(new Date());
-  const [publishing, setPublishing] = useState(false)
-  const { showAlert, AlertUI } = useAlert()
+  const [publishing, setPublishing] = useState(false);
+  const { showAlert, AlertUI } = useAlert();
 
-  // --- 字体控制状态 ---
-  const [fontSize, setFontSize] = useState(localStorage.getItem('rin-fontSize') || '14px');
+  // --- 字体、字号、行距控制状态 ---
+  const [fontSize, setFontSize] = useState(localStorage.getItem('rin-fontSize') || '16px');
   const [fontFamily, setFontFamily] = useState(localStorage.getItem('rin-fontFamily') || 'Sarasa Mono SC, JetBrains Mono, monospace');
+  const [lineHeight, setLineHeight] = useState(Number(localStorage.getItem('rin-lineHeight')) || 1.6);
 
   function publishButton() {
     if (publishing) return;
     const tagsplit = tags.split("#").filter((tag) => tag !== "").map((tag) => tag.trim()) || [];
     const payload = { title, content, summary, tags: tagsplit, draft, alias, listed, createdAt, onCompleted: () => setPublishing(false), showAlert };
     setPublishing(true);
-    if (id !== undefined) {
-      update({ id, ...payload });
-    } else {
+    if (id !== undefined) update({ id, ...payload });
+    else {
       if (!title) { showAlert(t("title_empty")); setPublishing(false); return; }
       if (!content) { showAlert(t("content.empty")); setPublishing(false); return; }
       publish(payload);
@@ -114,7 +96,7 @@ export function WritingPage({ id }: { id?: number }) {
       mermaid.run({ suppressErrors: true, nodes: document.querySelectorAll("pre.mermaid_default") }).then(() => {
         mermaid.initialize({ startOnLoad: false, theme: "dark" });
         mermaid.run({ suppressErrors: true, nodes: document.querySelectorAll("pre.mermaid_dark") });
-      })
+      });
     }, 100),
     []
   );
@@ -141,7 +123,7 @@ export function WritingPage({ id }: { id?: number }) {
           <Calendar value={createdAt} onChange={(e) => setCreatedAt(e.value || undefined)} showTime touchUI hourFormat="24" />
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -151,24 +133,30 @@ export function WritingPage({ id }: { id?: number }) {
         <meta property="og:site_name" content={siteName} />
         <style>
           {`
-            /* 1. 修复编辑器内部选中框与字体的物理对齐 */
-            .monaco-editor, .monaco-editor .view-line, .monaco-editor .view-line span {
-              font-size: ${fontSize} !important;
-              font-family: ${fontFamily} !important;
-              line-height: 1.5 !important;
+            :root {
+              --editor-fs: ${fontSize};
+              --editor-lh: ${lineHeight};
             }
 
-            /* 2. 修正光标大小 */
+            /* 修正光标：核心在于计算偏移量，防止其偏上 */
             .monaco-editor .cursor {
-              height: ${fontSize} !important;
+              height: var(--editor-fs) !important;
+              /* 偏移公式：(行高系数 - 1) * 字号 / 2 */
+              transform: translateY(calc((var(--editor-lh) - 1) * var(--editor-fs) / 2)) !important;
+              width: 2px !important;
             }
 
-            /* 3. 核心：修复预览页面不换行的问题 */
+            .monaco-editor, .monaco-editor .view-line, .monaco-editor .view-line span {
+              font-size: var(--editor-fs) !important;
+              font-family: ${fontFamily} !important;
+              line-height: calc(var(--editor-fs) * var(--editor-lh)) !important;
+            }
+
             .toc-content, .vditor-reset, .markdown-editor textarea {
               white-space: pre-wrap !important;
               word-break: break-all;
-              font-size: ${fontSize} !important;
-              font-family: ${fontFamily} !important;
+              font-size: var(--editor-fs) !important;
+              line-height: var(--editor-lh) !important;
             }
           `}
         </style>
@@ -178,9 +166,9 @@ export function WritingPage({ id }: { id?: number }) {
         <div className="col-span-2 pb-8">
           <div className="bg-w rounded-2xl shadow-xl shadow-light p-4">
             
-            {/* 字体工具栏 */}
-            <div className="flex flex-row gap-4 mb-3 px-2 py-1 bg-gray-50 dark:bg-zinc-800/50 rounded-lg text-xs opacity-70 border border-gray-100 dark:border-zinc-700">
-               <div className="flex items-center gap-1">
+            {/* 增强型工具栏 */}
+            <div className="flex flex-wrap gap-4 mb-3 px-3 py-2 bg-gray-50 dark:bg-zinc-800/50 rounded-lg text-xs opacity-80 border border-gray-100 dark:border-zinc-700">
+               <div className="flex items-center gap-2">
                  <span>字号:</span>
                  <select 
                    value={fontSize} 
@@ -190,26 +178,37 @@ export function WritingPage({ id }: { id?: number }) {
                    {['12px', '14px', '16px', '18px', '20px', '24px'].map(v => <option key={v} value={v}>{v}</option>)}
                  </select>
                </div>
-               <div className="flex items-center gap-1">
+               
+               <div className="flex items-center gap-2 border-l pl-3 border-gray-300 dark:border-zinc-600">
+                 <span>行距:</span>
+                 <input 
+                    type="range" min="1" max="2.5" step="0.1" 
+                    value={lineHeight} 
+                    onChange={(e) => { setLineHeight(Number(e.target.value)); localStorage.setItem('rin-lineHeight', e.target.value); }}
+                    className="w-20 accent-theme"
+                 />
+                 <span className="w-6 font-mono">{lineHeight}</span>
+               </div>
+
+               <div className="flex items-center gap-2 border-l pl-3 border-gray-300 dark:border-zinc-600">
                  <span>字体:</span>
                  <select 
                    value={fontFamily} 
                    onChange={(e) => { setFontFamily(e.target.value); localStorage.setItem('rin-fontFamily', e.target.value); }}
                    className="bg-transparent border-none outline-none cursor-pointer text-theme font-bold"
                  >
-                   <option value="Sarasa Mono SC, JetBrains Mono, monospace">更纱/JB Mono</option>
-                   <option value="'Noto Serif SC', serif">衬线 (宋体)</option>
-                   <option value="system-ui, sans-serif">无衬线</option>
-                   <option value="Consolas, monospace">Consolas</option>
+                   <option value="Sarasa Mono SC, JetBrains Mono, monospace">更纱等宽</option>
+                   <option value="'Noto Serif SC', serif">宋体/衬线</option>
+                   <option value="system-ui, sans-serif">系统无衬线</option>
                  </select>
                </div>
             </div>
 
             {MetaInput({ className: "visible md:hidden mb-8" })}
 
-            {/* 💡 关键：通过 key={fontSize} 强制 React 在字号变化时重新渲染编辑器 */}
+            {/* 通过 key 监听字号、字体、行距，任意一个改变都会触发编辑器彻底刷新，确保选中框 100% 正确 */}
             <MarkdownEditor 
-                key={`${fontSize}-${fontFamily}`} 
+                key={`${fontSize}-${fontFamily}-${lineHeight}`} 
                 content={content} 
                 setContent={setContent} 
                 height='600px' 
