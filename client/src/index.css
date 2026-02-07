@@ -1,6 +1,6 @@
 @import "./base.css";
 
-/* cantarell-latin-400-normal */
+/* --- 字体配置 --- */
 @font-face {
   font-family: "Cantarell";
   font-style: normal;
@@ -31,219 +31,101 @@ textarea:focus {
   @apply bg-w;
 }
 
-/* --- 正文图片样式及安全防护 --- */
+/* --- 图片基础样式与安全防护 --- */
 .wmde-markdown img {
   @apply rounded-lg;
   display: block;
   margin-left: auto;
   margin-right: auto;
-  
-  /* 防护：禁止 iOS 长按菜单、禁止拖拽、禁止选中 */
+  /* 禁止 Markdown 正文中的图片被拖拽或长按弹出菜单 */
   -webkit-touch-callout: none !important;
   -webkit-user-drag: none !important;
   user-select: none !important;
-  pointer-events: auto; /* 必须为 auto 才能触发点击放大 */
 }
 
-/* --- 图片放大插件 (Lightbox) 深度定制 --- */
+/* --- Lightbox 样式优化 --- */
 
-/* 1. 彻底隐藏下载按钮 */
-.yarl__button_download {
+/* 1. 彻底隐藏下载按钮（双重保险） */
+.yarl__button_download,
+.ri-download-line,
+.ri-download-fill {
   display: none !important;
 }
-.yarl__toolbar [aria-label="Download"] {
-  display: none !important;
-}
 
-/* 2. 修复缩放按钮（解决变灰或无法点击的问题） */
+/* 2. 优化工具栏按钮外观 (缩放、关闭按钮) */
 .yarl__button_zoom_in, 
-.yarl__button_zoom_out {
-  display: flex !important;
-  opacity: 1 !important;
-  color: rgba(255, 255, 255, 0.8) !important; /* 默认白色半透明 */
-  cursor: pointer !important;
-  pointer-events: auto !important; /* 确保可点击 */
+.yarl__button_zoom_out,
+.yarl__button_close {
+  color: rgba(255, 255, 255, 0.85) !important;
+  filter: drop-shadow(0 0 2px rgba(0,0,0,0.3));
 }
 
-/* 鼠标悬停时变亮 */
 .yarl__button_zoom_in:hover, 
-.yarl__button_zoom_out:hover {
+.yarl__button_zoom_out:hover,
+.yarl__button_close:hover {
   color: #ffffff !important;
+  background-color: rgba(255, 255, 255, 0.1) !important;
 }
 
-/* 只有在确实无法进一步缩放时才允许变灰 */
+/* 3. 针对禁用状态的自然视觉表现 */
+/* 当图片缩放到最小或最大时，插件会自动添加 disabled，这里让它自然变淡 */
 .yarl__button_zoom_in:disabled, 
 .yarl__button_zoom_out:disabled {
   opacity: 0.3 !important;
   cursor: not-allowed !important;
-  color: #888888 !important;
 }
 
-/* 3. 预览层图片防护 */
+/* 4. Lightbox 图片预览安全设置 */
 .yarl__slide_image {
-  -webkit-touch-callout: none !important;
-  -webkit-user-drag: none !important;
+  -webkit-touch-callout: none !important; /* 禁止移动端长按弹出保存图片 */
+  -webkit-user-drag: none !important;    /* 禁止鼠标拖拽图片 */
   user-select: none !important;
-  /* 注意：不要在这里加 pointer-events: none，否则插件无法感应缩放手势 */
 }
 
-/* 4. 全局禁用下载图标显示 */
-.ri-download-line, .ri-download-fill {
-  display: none !important;
-}
+/* --- 以下为原项目布局及 Markdown 样式 --- */
 
-ol {
-  list-style: decimal;
-}
+ol { list-style: decimal; }
+ul { list-style: initial; }
+.link-line a { @apply hover:underline; }
+.wmde-markdown code { @apply text-theme bg-secondary; }
 
-ul {
-  list-style: initial;
-}
+/* Alert 样式 */
+.markdown-alert { @apply !border-l-2 border-2 rounded-lg !py-4 my-4 !px-4 !leading-snug space-y-0; }
+.markdown-alert-note { @apply !border-indigo-300 bg-indigo-100 !text-indigo-400 dark:!bg-indigo-900 dark:!text-indigo-300 dark:!border-indigo-900; }
+.markdown-alert-warning { @apply !border-yellow-300 bg-yellow-100 !text-yellow-400 dark:!bg-yellow-900 dark:!text-yellow-300 dark:!border-yellow-900; }
+.markdown-alert-tip { @apply !border-green-300 bg-green-100 !text-green-400 dark:!bg-green-900 dark:!text-green-300 dark:!border-green-900; }
+.markdown-alert-important { @apply !border-purple-300 bg-purple-100 !text-purple-400 dark:!bg-purple-900 dark:!text-purple-300 dark:!border-purple-900; }
+.markdown-alert-caution { @apply !border-red-300 bg-red-100 !text-red-400 dark:!bg-red-900 dark:!text-red-300 dark:!border-red-900; }
+.markdown-alert-title { @apply flex flex-row items-center !mb-0 !text-inherit !font-bold fill-current; }
 
-.link-line a {
-  @apply hover:underline;
-}
+.p-inputtext { @apply bg-secondary text-end px-2 py-2; }
+.octicon { @apply mr-1 w-3; }
+.katex { overflow-x: auto; overflow-y: hidden; }
 
-.wmde-markdown code {
-  @apply text-theme bg-secondary;
-}
-
-.markdown-alert {
-  @apply !border-l-2 border-2 rounded-lg !py-4 my-4 !px-4 !leading-snug space-y-0;
-}
-
-.markdown-alert-note {
-  @apply !border-indigo-300 bg-indigo-100 !text-indigo-400 dark:!bg-indigo-900 dark:!text-indigo-300 dark:!border-indigo-900;
-}
-
-.markdown-alert-warning {
-  @apply !border-yellow-300 bg-yellow-100 !text-yellow-400 dark:!bg-yellow-900 dark:!text-yellow-300 dark:!border-yellow-900;
-}
-
-.markdown-alert-tip {
-  @apply !border-green-300 bg-green-100 !text-green-400 dark:!bg-green-900 dark:!text-green-300 dark:!border-green-900;
-}
-
-.markdown-alert-important {
-  @apply !border-purple-300 bg-purple-100 !text-purple-400 dark:!bg-purple-900 dark:!text-purple-300 dark:!border-purple-900;
-}
-
-.markdown-alert-caution {
-  @apply !border-red-300 bg-red-100 !text-red-400 dark:!bg-red-900 dark:!text-red-300 dark:!border-red-900;
-}
-
-.markdown-alert-title {
-  @apply flex flex-row items-center !mb-0 !text-inherit !font-bold fill-current;
-}
-
-.p-inputtext {
-  @apply bg-secondary text-end px-2 py-2;
-}
-
-.octicon {
-  @apply mr-1 w-3;
-}
-
-.katex {
-  overflow-x: auto;
-  overflow-y: hidden;
-}
-
-/* animation */
-
+/* 动画效果 */
 @keyframes anvil {
-  0% {
-    transform: scale(1) translateY(0px);
-    opacity: 0;
-    box-shadow: 0 0 0 rgba(241, 241, 241, 0);
-  }
-
-  1% {
-    transform: scale(0.96) translateY(10px);
-    opacity: 0;
-    box-shadow: 0 0 0 rgba(241, 241, 241, 0);
-  }
-
-  100% {
-    transform: scale(1) translateY(0px);
-    opacity: 1;
-    box-shadow: 0 0 500px rgba(241, 241, 241, 0);
-  }
+  0% { transform: scale(1) translateY(0px); opacity: 0; }
+  1% { transform: scale(0.96) translateY(10px); opacity: 0; }
+  100% { transform: scale(1) translateY(0px); opacity: 1; }
 }
+.popup-content, .ani-show { animation: anvil 0.5s cubic-bezier(0.38, 0.1, 0.36, 0.9) forwards; }
+.ani-show-fast { animation: anvil 0.3s cubic-bezier(0.38, 0.1, 0.36, 0.9) forwards; }
 
-.popup-content {
-  animation: anvil 0.3s cubic-bezier(0.38, 0.1, 0.36, 0.9) forwards;
-}
+/* 表格样式 */
+.table { @apply w-full border-collapse my-4; overflow-x: auto; display: block !important; }
+.table th, .table td { @apply border border-slate-500 dark:border-slate-300 px-4 py-2; }
+.table th { @apply bg-slate-200 dark:bg-slate-700; }
 
-.ani-show {
-  animation: anvil 0.5s cubic-bezier(0.38, 0.1, 0.36, 0.9) forwards;
-}
-
-.ani-show-fast {
-  animation: anvil 0.3s cubic-bezier(0.38, 0.1, 0.36, 0.9) forwards;
-}
-
-.table {
-  @apply w-full border-collapse my-4;
-  overflow-x: auto;
-  display: block !important;
-}
-
-.table th,
-.table td {
-  @apply border border-slate-500 dark:border-slate-300 px-4 py-2;
-}
-
-.table th {
-  @apply bg-slate-200 dark:bg-slate-700;
-}
-
-/* TOC Style */
-
-.toc {
-  overflow-y: auto;
-}
-
-.toc>.toc-list {
-  overflow: hidden;
-  position: relative;
-}
-
-.toc>.toc-list li {
-  list-style: none;
-}
-
-.toc-list {
-  margin: 0;
-  padding-left: 10px;
-}
-
-a.toc-link {
-  color: currentColor;
-  height: 100%;
-  width: 100%;
-  display: block;
-}
-
-.is-collapsible {
-  max-height: 1000px;
-  overflow: hidden;
-  transition: all 300ms ease-in-out;
-}
-
-.is-collapsed {
-  max-height: 0;
-}
-
-.is-position-fixed {
-  position: fixed !important;
-  top: 0;
-}
-
-.is-active-link {
-  font-weight: 700;
-}
-
+/* TOC 目录导航样式 */
+.toc { overflow-y: auto; }
+.toc>.toc-list { overflow: hidden; position: relative; }
+.toc>.toc-list li { list-style: none; }
+.toc-list { margin: 0; padding-left: 10px; }
+a.toc-link { color: currentColor; height: 100%; width: 100%; display: block; }
+.is-collapsible { max-height: 1000px; overflow: hidden; transition: all 300ms ease-in-out; }
+.is-collapsed { max-height: 0; }
+.is-position-fixed { position: fixed !important; top: 0; }
+.is-active-link { font-weight: 700; }
 .toc-link::before {
   background-color: #eee;
   content: " ";
@@ -254,7 +136,4 @@ a.toc-link {
   position: absolute;
   width: 2px;
 }
-
-.is-active-link::before {
-  @apply bg-theme;
-}
+.is-active-link::before { @apply bg-theme; }
