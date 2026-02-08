@@ -7,7 +7,6 @@ import { Markdown } from "./markdown";
 import { client } from "../main";
 import { headersWithAuth } from "../utils/auth";
 
-// 预加载配置
 loader.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.43.0/min/vs' } });
 
 interface MarkdownEditorProps {
@@ -40,35 +39,27 @@ export function MarkdownEditor({
     { label: "根号 (sqrt)", value: "$\\sqrt{内容}$", placeholder: "内容" },
   ];
 
-  const insertMathTemplate = useCallback((template: string, placeholder?: string) => {
-    const editor = editorRef.current;
-    if (!editor) return;
-    const selection = editor.getSelection();
+  const checkStyleStatus = useCallback((editor: editor.IStandaloneCodeEditor) => {
     const model = editor.getModel();
-    if (!selection || !model) return;
+    const selection = editor.getSelection();
+    if (!model || !selection) return;
+    const line = model.getLineContent(selection.startLineNumber);
+    const col = selection.startColumn;
 
-    const selectedText = model.getValueInRange(selection);
-    let textToInsert = template;
+    const isWrapped = (open: string, close: string) => {
+      const idxOpen = line.lastIndexOf(open, col - 1);
+      const idxClose = line.indexOf(close, col - 1);
+      return idxOpen !== -1 && idxClose !== -1 && idxOpen < idxClose;
+    };
 
-    const isReplacingPlaceholder = selectedText === "公式" || selectedText === "公式内容";
-    if (isReplacingPlaceholder) {
-      textToInsert = template.replace(/^\$/, '').replace(/\$$/, '');
-    } else if (selectedText && placeholder && !isReplacingPlaceholder) {
-      textToInsert = template.replace(placeholder, selectedText);
-    }
-
-    editor.executeEdits("insert", [{ range: selection, text: textToInsert, forceMoveMarkers: true }]);
-    
-    if ((!selectedText || isReplacingPlaceholder) && placeholder) {
-      setTimeout(() => {
-        const currentPos = editor.getPosition();
-        if (!currentPos) return;
-        const matches = model.findMatches(placeholder, true, false, false, null, false);
-        const nearestMatch = matches.find(m => m.range.startLineNumber === currentPos.lineNumber || m.range.startLineNumber === currentPos.lineNumber - 1);
-        if (nearestMatch) editor.setSelection(nearestMatch.range);
-      }, 10);
-    }
-    editor.focus();
+    setActiveStyles({
+      bold: isWrapped('**', '**'),
+      italic: (line.lastIndexOf('*', col - 1) !== -1 && line.indexOf('*', col - 1) !== -1),
+      underline: isWrapped('<u>', '</u>'),
+      strikethrough: isWrapped('~~', '~~'),
+      sup: isWrapped('<sup>', '</sup>'),
+      sub: isWrapped('<sub>', '</sub>'),
+    });
   }, []);
 
   const applyStyle = useCallback((type: string) => {
@@ -92,36 +83,39 @@ export function MarkdownEditor({
     const newText = s.reg.test(selectedText) ? selectedText.replace(s.reg, '$1') : `${s.b}${selectedText}${s.a}`;
     editor.executeEdits("style", [{ range: selection, text: newText, forceMoveMarkers: true }]);
     editor.focus();
-  }, []);
+    checkStyleStatus(editor);
+  }, [checkStyleStatus]);
 
-  const checkStyleStatus = (editor: editor.IStandaloneCodeEditor) => {
-    const model = editor.getModel();
+  const insertMathTemplate = useCallback((template: string, placeholder?: string) => {
+    const editor = editorRef.current;
+    if (!editor) return;
     const selection = editor.getSelection();
-    if (!model || !selection) return;
+    const model = editor.getModel();
+    if (!selection || !model) return;
 
-    const line = model.getLineContent(selection.startLineNumber);
-    const col = selection.startColumn;
+    const selectedText = model.getValueInRange(selection);
+    let textToInsert = template;
+    const isReplacingPlaceholder = selectedText === "公式" || selectedText === "公式内容";
+    
+    if (isReplacingPlaceholder) {
+      textToInsert = template.replace(/^\$/, '').replace(/\$$/, '');
+    } else if (selectedText && placeholder && !isReplacingPlaceholder) {
+      textToInsert = template.replace(placeholder, selectedText);
+    }
 
-    const test = (open: string, close: string) => {
-      const idxOpen = line.lastIndexOf(open, col - 1);
-      const idxClose = line.indexOf(close, col - 1);
-      return idxOpen !== -1 && idxClose !== -1 && idxOpen < idxClose;
-    };
-
-    setActiveStyles({
-      bold: test('**', '**'),
-      italic: (line.lastIndexOf('*', col - 1) !== -1 && line.indexOf('*', col - 1) !== -1),
-      underline: test('<u>', '</u>'),
-      strikethrough: test('~~', '~~'),
-      sup: test('<sup>', '</sup>'),
-      sub: test('<sub>', '</sub>'),
-    });
-  };
-
-  const uploadImage = (file: File, onSuccess: (url: string) => void) => {
-    client.storage.index.post({ key: file.name, file: file }, { headers: headersWithAuth() })
-      .then(({ data }) => data && onSuccess(data));
-  };
+    editor.executeEdits("insert", [{ range: selection, text: textToInsert, forceMoveMarkers: true }]);
+    
+    if ((!selectedText || isReplacingPlaceholder) && placeholder) {
+      setTimeout(() => {
+        const currentPos = editor.getPosition();
+        if (!currentPos) return;
+        const matches = model.findMatches(placeholder, true, false, false, null, false);
+        const nearestMatch = matches.find(m => m.range.startLineNumber === currentPos.lineNumber || m.range.startLineNumber === currentPos.lineNumber - 1);
+        if (nearestMatch) editor.setSelection(nearestMatch.range);
+      }, 10);
+    }
+    editor.focus();
+  }, []);
 
   const handleFileUpload = (file: File) => {
     const editor = editorRef.current;
@@ -129,18 +123,23 @@ export function MarkdownEditor({
     setUploading(true);
     const id = Math.random().toString(36).substring(7);
     const placeholderText = `\n![⌛ 正在上传 ${file.name}... {${id}}]()\n`;
-    
     const selection = editor.getSelection() || new Selection(1,1,1,1);
     editor.executeEdits("upload", [{ range: selection, text: placeholderText, forceMoveMarkers: true }]);
 
-    uploadImage(file, (url) => {
-      const model = editor.getModel();
-      const find = model?.findMatches(`{${id}}`, false, false, false, null, false);
-      if (find && find.length > 0) {
-        editor.executeEdits("complete", [{ range: find[0].range.setStartPosition(find[0].range.startLineNumber, 1).setEndPosition(find[0].range.startLineNumber, 1000), text: `![${file.name}](${url})` }]);
-      }
-      setUploading(false);
-    });
+    client.storage.index.post({ key: file.name, file: file }, { headers: headersWithAuth() })
+      .then(({ data }) => {
+        if (data) {
+          const model = editor.getModel();
+          const find = model?.findMatches(`{${id}}`, false, false, false, null, false);
+          if (find && find.length > 0) {
+            editor.executeEdits("complete", [{ 
+              range: find[0].range.setStartPosition(find[0].range.startLineNumber, 1).setEndPosition(find[0].range.startLineNumber, 1000), 
+              text: `![${file.name}](${data})` 
+            }]);
+          }
+        }
+        setUploading(false);
+      });
   };
 
   const handleEditorMount = (editor: editor.IStandaloneCodeEditor) => {
@@ -169,7 +168,7 @@ export function MarkdownEditor({
         const coords = editor.getScrolledVisiblePosition(e.selection.getStartPosition());
         if (coords) {
           const rect = editor.getDomNode()?.getBoundingClientRect();
-          setBubblePos(rect ? { x: coords.left + rect.left, y: coords.top + rect.top - 45 } : null);
+          setBubblePos(rect ? { x: coords.left + rect.left, y: coords.top + rect.top - 50 } : null);
         }
       } else {
         setBubblePos(null);
@@ -183,15 +182,32 @@ export function MarkdownEditor({
 
   return (
     <div className="flex flex-col gap-2 relative">
+      {/* 增强型悬浮工具栏 (Bubble Menu) */}
       {bubblePos && (
-        <div className="fixed z-[100] flex gap-1 bg-white dark:bg-zinc-800 shadow-xl border dark:border-zinc-700 p-1 rounded-lg animate-in fade-in zoom-in-95"
+        <div className="fixed z-[100] flex items-center gap-0.5 bg-white dark:bg-zinc-800 shadow-2xl border dark:border-zinc-700 p-1 rounded-xl animate-in fade-in zoom-in-95 duration-100"
              style={{ left: bubblePos.x, top: bubblePos.y }}>
-          <button onClick={() => applyStyle('bold')} className="p-1 hover:bg-gray-100 dark:hover:bg-zinc-700 rounded"><i className="ri-bold" /></button>
-          <button onClick={() => insertMathTemplate("$公式$", "公式")} className="p-1 text-theme hover:bg-gray-100 dark:hover:bg-zinc-700 rounded"><i className="ri-functions" /></button>
+          <ToolbarButton active={activeStyles.bold} onClick={() => applyStyle('bold')} icon="ri-bold" sm />
+          <ToolbarButton active={activeStyles.italic} onClick={() => applyStyle('italic')} icon="ri-italic" sm />
+          <ToolbarButton active={activeStyles.underline} onClick={() => applyStyle('underline')} icon="ri-underline" sm />
+          <ToolbarButton active={activeStyles.strikethrough} onClick={() => applyStyle('strikethrough')} icon="ri-strikethrough" sm />
+          <div className="w-[1px] h-3 bg-gray-200 dark:bg-zinc-700 mx-0.5" />
+          <ToolbarButton active={activeStyles.sup} onClick={() => applyStyle('sup')} icon="ri-superscript" sm />
+          <ToolbarButton active={activeStyles.sub} onClick={() => applyStyle('sub')} icon="ri-subscript" sm />
+          <div className="w-[1px] h-3 bg-gray-200 dark:bg-zinc-700 mx-0.5" />
+          <button onClick={() => insertMathTemplate("$公式$", "公式")} className="p-1 text-theme hover:bg-gray-100 dark:hover:bg-zinc-700 rounded transition-colors">
+            <i className="ri-functions text-sm" />
+          </button>
         </div>
       )}
 
+      {/* 顶部主工具栏 */}
       <div className="flex flex-wrap items-center gap-1 p-2 bg-gray-50 dark:bg-zinc-900/50 rounded-xl border dark:border-zinc-800">
+        <label className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded text-theme cursor-pointer" title="上传图片">
+          <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files?.[0])} />
+          <i className="ri-image-add-line" />
+        </label>
+        <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
+        
         <ToolbarButton active={activeStyles.bold} onClick={() => applyStyle('bold')} icon="ri-bold" />
         <ToolbarButton active={activeStyles.italic} onClick={() => applyStyle('italic')} icon="ri-italic" />
         <ToolbarButton active={activeStyles.underline} onClick={() => applyStyle('underline')} icon="ri-underline" />
@@ -201,7 +217,7 @@ export function MarkdownEditor({
         <ToolbarButton active={activeStyles.sub} onClick={() => applyStyle('sub')} icon="ri-subscript" />
         
         <div className="flex-grow" />
-        {uploading && <div className="flex items-center gap-2 text-[10px] text-theme animate-pulse"><Loading type="spin" color="#FC466B" height={12} width={12} /> 处理中...</div>}
+        {uploading && <div className="flex items-center gap-2 text-[10px] text-theme animate-pulse"><Loading type="spin" color="#FC466B" height={12} width={12} /></div>}
         
         <div className="relative group">
           <button className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded flex items-center gap-1">
@@ -237,10 +253,13 @@ export function MarkdownEditor({
   );
 }
 
-function ToolbarButton({ active, onClick, icon }: { active?: boolean, onClick: () => void, icon: string }) {
+function ToolbarButton({ active, onClick, icon, sm }: { active?: boolean, onClick: () => void, icon: string, sm?: boolean }) {
   return (
-    <button onClick={onClick} className={`p-1.5 rounded transition-all ${active ? 'bg-theme text-white' : 'hover:bg-gray-200 dark:hover:bg-zinc-700 dark:text-gray-300'}`}>
-      <i className={icon} />
+    <button 
+      onClick={onClick} 
+      className={`rounded transition-all ${sm ? 'p-1' : 'p-1.5'} ${active ? 'bg-theme text-white shadow-md' : 'hover:bg-gray-200 dark:hover:bg-zinc-700 dark:text-gray-300'}`}
+    >
+      <i className={`${icon} ${sm ? 'text-xs' : 'text-base'}`} />
     </button>
   );
 }
