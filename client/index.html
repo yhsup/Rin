@@ -8,41 +8,64 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer/dist/APlayer.min.css">
     
     <style>
-      /* --- 1. 音乐插件：按钮移至右上角，歌词保留在右下角 --- */
+      /* --- 1. 音乐插件默认样式 (PC端嵌入导航栏) --- */
       .aplayer.aplayer-fixed.aplayer-narrow .aplayer-body {
-        top: 20px !important;    /* 【位置】距离顶部 20px */
-        right: 0 !important;     /* 【位置】固定在右侧 */
+        top: 15px !important;
+        right: 15px !important;
         left: auto !important;
         bottom: auto !important;
+        width: 36px !important;
+        height: 36px !important;
+        background: rgba(255, 255, 255, 0.2) !important;
+        backdrop-filter: blur(8px);
+        border-radius: 50%;
+        z-index: 10002 !important;
       }
       
-      /* 强制歌词容器固定在右下角 */
       .aplayer.aplayer-fixed .aplayer-lrc {
-        bottom: 20px !important; /* 歌词距离底部距离 */
-        right: 20px !important;  /* 歌词距离右侧距离 */
+        bottom: 20px !important;
+        right: 20px !important;
         left: auto !important;
         width: auto !important;
-        z-index: 10000 !important;
-        text-shadow: 0 1px 12px rgba(0,0,0,0.5); /* 增强歌词可读性 */
+        pointer-events: none; /* 防止歌词遮挡点击 */
       }
 
-      /* --- 2. 天气插件：放到右下角，音乐歌词上方 --- */
+      /* --- 2. 天气插件默认样式 (PC端嵌入导航栏) --- */
       #weather-container {
         position: fixed;
-        right: 20px;            /* 距离右侧 20px */
-        bottom: 80px;           /* 【位置】位于底部，避开歌词位置 */
-        width: 160px;           /* 【大小修改】天气插件宽度 */
-        z-index: 9998;
-        border-radius: 12px;
+        top: 15px;
+        left: 80px;
+        width: 140px;
+        height: 32px;
+        z-index: 10001;
         overflow: hidden;
-        box-shadow: 0 4px 24px rgba(0,0,0,0.1);
-        backdrop-filter: blur(4px);
       }
 
-      /* --- 3. 看板娘：大小与层级 --- */
-      #live2d-widget {
-        pointer-events: auto !important;
-        z-index: 9999 !important;
+      /* --- 3. 移动端适配 (核心修改点) --- */
+      @media (max-width: 768px) {
+        /* 手机端隐藏天气，导航栏放不下 */
+        #weather-container {
+          display: none !important;
+        }
+
+        /* 手机端看板娘强制隐藏（即使 JS 里没设，CSS 也能强行关掉） */
+        #live2d-widget {
+          display: none !important;
+        }
+
+        /* 手机端音乐按钮移到右下角，避免挡住顶部的返回键或菜单 */
+        .aplayer.aplayer-fixed.aplayer-narrow .aplayer-body {
+          top: auto !important;
+          bottom: 20px !important;
+          right: 20px !important;
+          width: 45px !important; /* 手机端稍微大一点，方便手指点 */
+          height: 45px !important;
+        }
+
+        /* 手机端隐藏歌词，太占地方 */
+        .aplayer-lrc {
+          display: none !important;
+        }
       }
     </style>
   </head>
@@ -51,11 +74,8 @@
 
     <div id="weather-container">
       <a class="weatherwidget-io" href="https://forecast7.com/en/40d71n74d01/new-york/" 
-         data-label_1="LOCAL" 
-         data-label_2="WEATHER" 
-         data-font="Roboto" 
-         data-icons="Climacons Animated" 
-         data-mode="Current" 
+         data-label_1=" " 
+         data-label_2=" " 
          data-theme="pure" >WEATHER</a>
       <script>
       !function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0];if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src='https://weatherwidget.io/js/widget.min.js';fjs.parentNode.insertBefore(js,fjs);}}(document,'script','weatherwidget-io-js');
@@ -65,14 +85,13 @@
     <script>
       window.live2d_settings = {
         modelId: 1,
-        modelTexturesId: 87,
         widgetsConfig: {
           position: 'right', 
-          width: '120px',       /* 【大小修改】看板娘宽度变小 */
-          height: '180px',      /* 【大小修改】看板娘高度变小 */
-          bottom: '150px'       /* 【位置】置于天气插件上方，防止重叠 */
+          width: '100px',
+          height: '150px',
+          bottom: '0px'
         },
-        mobile: { show: false }
+        mobile: { show: false } // JS 层级禁用移动端显示
       };
     </script>
 
