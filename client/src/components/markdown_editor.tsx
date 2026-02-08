@@ -30,7 +30,6 @@ export function MarkdownEditor({
   const [preview, setPreview] = useState<'edit' | 'preview' | 'comparison'>('edit');
   const [uploading, setUploading] = useState(false);
 
-  // --- 增强版数学公式定义：包含中文占位符 ---
   const mathSymbols = [
     { label: "行内公式", value: "$公式$", placeholder: "公式" },
     { label: "块级公式", value: "\n$$\n公式内容\n$$\n", placeholder: "公式内容" },
@@ -42,7 +41,6 @@ export function MarkdownEditor({
     { label: "希腊字母 (π)", value: "\\pi", placeholder: "" },
   ];
 
-  // --- 核心：实现“所见即所得”式的交互插入 ---
   const insertMathTemplate = (text: string, placeholder?: string) => {
     const editor = editorRef.current;
     if (!editor) return;
@@ -50,19 +48,15 @@ export function MarkdownEditor({
     const model = editor.getModel();
     if (!selection || !model) return;
 
-    // 插入文本
     editor.executeEdits("insert-math", [{
       range: selection,
       text: text,
       forceMoveMarkers: true
     }]);
 
-    // 如果有占位符，自动寻找并选中它，方便用户直接打字替换
     if (placeholder && placeholder !== "") {
       const position = editor.getPosition();
       if (position) {
-        const fullText = model.getValue();
-        // 简单定位策略：从当前光标位置向前搜索刚刚插入的占位符
         const lines = text.split('\n');
         const lastLineContent = lines[lines.length - 1];
         const placeholderIdx = lastLineContent.indexOf(placeholder);
@@ -129,7 +123,6 @@ export function MarkdownEditor({
     );
   }
 
-  // --- 以下为原有的图片上传、表格、样式等逻辑（严格保留） ---
   function uploadImage(file: File, onSuccess: (url: string) => void, showAlert: (msg: string) => void) {
     client.storage.index.post({ key: file.name, file: file }, { headers: headersWithAuth() })
       .then(({ data, error }) => {
@@ -243,26 +236,37 @@ export function MarkdownEditor({
       <div className={`grid grid-cols-1 ${preview === 'comparison' ? "lg:grid-cols-2" : ""} gap-4`}>
         <div className={preview === 'preview' ? "hidden" : "flex flex-col"}>
           <div className="flex flex-wrap items-center gap-y-2 gap-x-1 mb-2 p-2 bg-gray-50 dark:bg-zinc-900/50 rounded-xl border dark:border-zinc-800">
-            {/* 核心工具栏 */}
-            <button onClick={() => editorRef.current?.getDomNode()?.querySelector('input')?.click()} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded text-theme" title="上传图片"><i className="ri-image-add-line" /></button>
+            {/* 图片上传 */}
+            <label className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded text-theme cursor-pointer" title="上传图片">
+              <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  setUploading(true);
+                  uploadImage(file, (url) => {
+                    const sel = editorRef.current?.getSelection() || new Selection(1,1,1,1);
+                    editorRef.current?.executeEdits("upload-img", [{ range: sel, text: `![${file.name}](${url})\n` }]);
+                    setUploading(false);
+                  }, () => setUploading(false));
+                }
+              }} />
+              <i className="ri-image-add-line" />
+            </label>
+
             <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
-            
-            <button onClick={() => applyStyle('bold')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white"><i className="ri-bold" /></button>
-            <button onClick={() => applyStyle('italic')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white"><i className="ri-italic" /></button>
-            <button onClick={() => applyStyle('underline')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white"><i className="ri-underline" /></button>
-            <button onClick={() => applyStyle('strikethrough')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white"><i className="ri-strikethrough" /></button>
-            
+            <button onClick={() => applyStyle('bold')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white" title="加粗"><i className="ri-bold" /></button>
+            <button onClick={() => applyStyle('italic')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white" title="斜体"><i className="ri-italic" /></button>
+            <button onClick={() => applyStyle('underline')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white" title="下划线"><i className="ri-underline" /></button>
+            <button onClick={() => applyStyle('strikethrough')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white" title="删除线"><i className="ri-strikethrough" /></button>
             <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
-            <button onClick={insertTable} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white"><i className="ri-table-line" /></button>
+            <button onClick={insertTable} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white" title="表格"><i className="ri-table-line" /></button>
             
-            {/* 增强后的公式按钮 */}
             <MathFormulaButton />
 
             <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
-            <button onClick={() => applyStyle('sup')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white"><i className="ri-superscript" /></button>
-            <button onClick={() => applyStyle('sub')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white"><i className="ri-subscript" /></button>
-            <button onClick={() => applySpanStyle('background-color: #ffff00; color: #000')} className="p-1.5 bg-yellow-200 hover:bg-yellow-300 rounded text-black"><i className="ri-mark-pen-line" /></button>
-            <button onClick={removeFormatting} className="p-1.5 hover:bg-red-100 text-red-500 rounded"><i className="ri-format-clear" /></button>
+            <button onClick={() => applyStyle('sup')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white" title="上标"><i className="ri-superscript" /></button>
+            <button onClick={() => applyStyle('sub')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white" title="下标"><i className="ri-subscript" /></button>
+            <button onClick={() => applySpanStyle('background-color: #ffff00; color: #000')} className="p-1.5 bg-yellow-200 hover:bg-yellow-300 rounded text-black" title="高亮"><i className="ri-mark-pen-line" /></button>
+            <button onClick={removeFormatting} className="p-1.5 hover:bg-red-100 text-red-500 rounded" title="清除格式"><i className="ri-format-clear" /></button>
           </div>
 
           <div className="border rounded-xl overflow-hidden bg-white dark:bg-[#1e1e1e]" onPaste={handlePaste}>
