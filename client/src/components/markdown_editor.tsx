@@ -21,7 +21,7 @@ export function MarkdownEditor({
   setContent,
   placeholder = "> Write your content here...",
   height = "400px",
-  fontFamily = "Sarasa Mono SC, JetBrains Mono, monospace"
+  fontFamily: defaultFontFamily = "Sarasa Mono SC, JetBrains Mono, monospace"
 }: MarkdownEditorProps) {
   const { t } = useTranslation();
   const colorMode = useColorMode();
@@ -29,22 +29,22 @@ export function MarkdownEditor({
   const isComposingRef = useRef(false);
   const [preview, setPreview] = useState<'edit' | 'preview' | 'comparison'>('edit');
   const [uploading, setUploading] = useState(false);
+  const [currentFont, setCurrentFont] = useState(defaultFontFamily);
 
-  // --- 图片上传逻辑 ---
+  const fontOptions = [
+    { name: "等宽 (默认)", value: "Sarasa Mono SC, JetBrains Mono, monospace" },
+    { name: "代码连字 (Fira Code)", value: "'Fira Code', monospace" },
+    { name: "思源宋体 (Noto Serif SC)", value: "'Noto Serif SC', serif" },
+    { name: "马善政毛笔", value: "'Ma Shan Zheng', cursive" },
+    { name: "之芒行书", value: "'Zhi Mang Xing', cursive" },
+  ];
+
   function uploadImage(file: File, onSuccess: (url: string) => void, showAlert: (msg: string) => void) {
-    client.storage.index
-      .post(
-        { key: file.name, file: file },
-        { headers: headersWithAuth() }
-      )
+    client.storage.index.post({ key: file.name, file: file }, { headers: headersWithAuth() })
       .then(({ data, error }) => {
         if (error) showAlert(t("upload.failed"));
         if (data) onSuccess(data);
-      })
-      .catch((e: any) => {
-        console.error(e);
-        showAlert(t("upload.failed"));
-      });
+      }).catch(() => showAlert(t("upload.failed")));
   }
 
   const handlePaste = async (event: React.ClipboardEvent<HTMLDivElement>) => {
@@ -56,35 +56,21 @@ export function MarkdownEditor({
       const myfile = clipboardData.files[0] as File;
       uploadImage(myfile, (url) => {
         const selection = editor.getSelection();
-        if (!selection) return;
-        editor.executeEdits(undefined, [{
-          range: selection,
-          text: `![${myfile.name}](${url})\n`,
-        }]);
+        if (selection) editor.executeEdits(undefined, [{ range: selection, text: `![${myfile.name}](${url})\n` }]);
         setUploading(false);
-      }, (msg) => {
-        console.error(msg);
-        setUploading(false);
-      });
+      }, () => setUploading(false));
     }
   };
 
-  // --- 样式处理逻辑 ---
   const applyStyle = (type: string) => {
     const editor = editorRef.current;
     if (!editor) return;
     const selection = editor.getSelection();
     const model = editor.getModel();
     if (!selection || !model) return;
-    const styles: Record<string, [string, string]> = {
-      bold: ['**', '**'],
-      italic: ['*', '*'],
-      underline: ['<u>', '</u>'],
-      strikethrough: ['~~', '~~'],
-    };
+    const styles: Record<string, [string, string]> = { bold: ['**', '**'], italic: ['*', '*'], underline: ['<u>', '</u>'] };
     const [before, after] = styles[type];
-    const selectedText = model.getValueInRange(selection);
-    editor.executeEdits("style", [{ range: selection, text: `${before}${selectedText}${after}`, forceMoveMarkers: true }]);
+    editor.executeEdits("style", [{ range: selection, text: `${before}${model.getValueInRange(selection)}${after}`, forceMoveMarkers: true }]);
     editor.focus();
   };
 
@@ -93,14 +79,8 @@ export function MarkdownEditor({
     if (!editor) return;
     const selection = editor.getSelection();
     const model = editor.getModel();
-    if (!selection || !model) return;
-    const selectedText = model.getValueInRange(selection);
-    if (!selectedText) return;
-    editor.executeEdits("span-style", [{
-      range: selection,
-      text: `<span style="${styleStr}">${selectedText}</span>`,
-      forceMoveMarkers: true
-    }]);
+    if (!selection || !model || !model.getValueInRange(selection)) return;
+    editor.executeEdits("span-style", [{ range: selection, text: `<span style="${styleStr}">${model.getValueInRange(selection)}</span>`, forceMoveMarkers: true }]);
     editor.focus();
   };
 
@@ -110,73 +90,30 @@ export function MarkdownEditor({
     const selection = editor.getSelection();
     const model = editor.getModel();
     if (!selection || !model) return;
-    const selectedText = model.getValueInRange(selection);
-    const cleanText = selectedText.replace(/<span[^>]*>([\s\S]*?)<\/span>/g, '$1');
+    const cleanText = model.getValueInRange(selection).replace(/<span[^>]*>([\s\S]*?)<\/span>/g, '$1');
     editor.executeEdits("remove-format", [{ range: selection, text: cleanText, forceMoveMarkers: true }]);
     editor.focus();
   };
 
-  const insertTable = () => {
-    const editor = editorRef.current;
-    if (!editor) return;
-    const input = window.prompt("请输入行列 (如 3*3):", "3*3");
-    if (!input) return;
-    const [rows, cols] = input.split('*').map(Number);
-    if (isNaN(rows) || isNaN(cols)) return;
-    let tableMd = "| " + Array(cols).fill("Header").join(" | ") + " |\n";
-    tableMd += "| " + Array(cols).fill("---").join(" | ") + " |\n";
-    for (let i = 0; i < rows; i++) {
-      tableMd += "| " + Array(cols).fill("Content").join(" | ") + " |\n";
-    }
-    const selection = editor.getSelection();
-    if (selection) {
-      editor.executeEdits("table", [{ range: selection, text: tableMd.trim(), forceMoveMarkers: true }]);
-      editor.focus();
-    }
-  };
-
-  // --- 上传按钮组件 ---
   function UploadImageButton() {
     const uploadRef = useRef<HTMLInputElement>(null);
-    const upChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-      const files = event.currentTarget.files;
-      if (!files) return;
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        if (file.size > 5 * 1024000) {
-          alert("File too large (max 5MB)");
-        } else {
-          const editor = editorRef.current;
-          if (!editor) return;
-          const selection = editor.getSelection() || new Selection(1, 1, 1, 1);
-          setUploading(true);
-          uploadImage(file, (url) => {
-            setUploading(false);
-            editor.executeEdits(undefined, [{
-              range: selection,
-              text: `![${file.name}](${url})\n`,
-            }]);
-          }, (msg) => {
-            console.error(msg);
-            setUploading(false);
-          });
-        }
-      }
-    };
     return (
       <button onClick={() => uploadRef.current?.click()} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded text-theme" title="上传图片">
-        <input ref={uploadRef} onChange={upChange} className="hidden" type="file" accept="image/*" />
+        <input ref={uploadRef} className="hidden" type="file" accept="image/*" onChange={(e) => {
+          const file = e.currentTarget.files?.[0];
+          if (file) {
+            setUploading(true);
+            uploadImage(file, (url) => {
+              setUploading(false);
+              const sel = editorRef.current?.getSelection() || new Selection(1,1,1,1);
+              editorRef.current?.executeEdits(undefined, [{ range: sel, text: `![${file.name}](${url})\n` }]);
+            }, () => setUploading(false));
+          }
+        }} />
         <i className="ri-image-add-line" />
       </button>
     );
   }
-
-  const handleEditorMount = (editor: editor.IStandaloneCodeEditor) => {
-    editorRef.current = editor;
-    editor.onDidChangeModelContent(() => {
-      if (!isComposingRef.current) setContent(editor.getValue());
-    });
-  };
 
   return (
     <div className="flex flex-col gap-2">
@@ -187,60 +124,29 @@ export function MarkdownEditor({
           </button>
         ))}
         <div className="flex-grow" />
-        {uploading && (
-          <div className="flex flex-row space-x-2 items-center">
-            <Loading type="spin" color="#FC466B" height={16} width={16} />
-            <span className="text-sm text-neutral-500">{t('uploading')}</span>
-          </div>
-        )}
+        {uploading && <Loading type="spin" color="#FC466B" height={16} width={16} />}
       </div>
 
       <div className={`grid grid-cols-1 ${preview === 'comparison' ? "lg:grid-cols-2" : ""} gap-4`}>
         <div className={preview === 'preview' ? "hidden" : "flex flex-col"}>
-          
           <div className="flex flex-wrap items-center gap-y-2 gap-x-1 mb-2 p-2 bg-gray-50 dark:bg-zinc-900/50 rounded-xl border dark:border-zinc-800">
             <UploadImageButton />
             <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
-            <button onClick={() => applyStyle('bold')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded" title="加粗"><i className="ri-bold" /></button>
-            <button onClick={() => applyStyle('italic')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded" title="斜体"><i className="ri-italic" /></button>
-            <button onClick={() => applyStyle('underline')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded" title="下划线"><i className="ri-underline" /></button>
-            <button onClick={insertTable} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded" title="插入表格"><i className="ri-table-line" /></button>
-            
+            <select value={currentFont} onChange={(e) => setCurrentFont(e.target.value)} className="text-xs bg-transparent border border-gray-300 dark:border-zinc-700 rounded px-1 py-1 focus:outline-none">
+              {fontOptions.map(f => <option key={f.value} value={f.value}>{f.name}</option>)}
+            </select>
             <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
-            
-            {/* 仅保留高亮和清除格式 */}
-            <button onClick={() => applySpanStyle('background-color: #ffff00; color: #000')} className="p-1.5 bg-yellow-200 hover:bg-yellow-300 rounded text-black shadow-sm" title="高亮">
-              <i className="ri-mark-pen-line text-sm" />
-            </button>
-            <button onClick={removeFormatting} className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 rounded" title="清除格式">
-              <i className="ri-format-clear" />
-            </button>
+            <button onClick={() => applyStyle('bold')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded"><i className="ri-bold" /></button>
+            <button onClick={() => applyStyle('italic')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded"><i className="ri-italic" /></button>
+            <button onClick={() => applySpanStyle('background-color: #ffff00; color: #000')} className="p-1.5 bg-yellow-200 hover:bg-yellow-300 rounded text-black"><i className="ri-mark-pen-line" /></button>
+            <button onClick={removeFormatting} className="p-1.5 hover:bg-red-100 text-red-500 rounded"><i className="ri-format-clear" /></button>
           </div>
-
-          <div 
-            className="border rounded-xl overflow-hidden dark:border-zinc-800 shadow-sm bg-white dark:bg-[#1e1e1e]"
-            onPaste={handlePaste}
-            onDrop={(e) => {
-              e.preventDefault();
-              const editor = editorRef.current;
-              if (!editor) return;
-              const files = e.dataTransfer.files;
-              for (let i = 0; i < files.length; i++) {
-                setUploading(true);
-                uploadImage(files[i], (url) => {
-                  setUploading(false);
-                  const selection = editor.getSelection() || new Selection(1, 1, 1, 1);
-                  editor.executeEdits(undefined, [{ range: selection, text: `![${files[i].name}](${url})\n` }]);
-                }, () => setUploading(false));
-              }
-            }}
-          >
-            <Editor onMount={handleEditorMount} height={height} defaultLanguage="markdown" value={content} theme={colorMode === "dark" ? "vs-dark" : "light"}
-              options={{ wordWrap: "on", fontFamily, minimap: { enabled: false }, automaticLayout: true, lineNumbers: "on", dropIntoEditor: { enabled: true } }} 
+          <div className="border rounded-xl overflow-hidden dark:border-zinc-800 bg-white dark:bg-[#1e1e1e]" onPaste={handlePaste}>
+            <Editor onMount={(e) => { editorRef.current = e; e.onDidChangeModelContent(() => setContent(e.getValue())); }} height={height} defaultLanguage="markdown" value={content} theme={colorMode === "dark" ? "vs-dark" : "light"}
+              options={{ wordWrap: "on", fontFamily: currentFont, fontLigatures: true, fontSize: 14, minimap: { enabled: false }, automaticLayout: true }} 
             />
           </div>
         </div>
-        
         <div className={`px-4 py-2 overflow-y-auto border rounded-xl dark:border-zinc-800 bg-white dark:bg-zinc-950 ${preview === 'edit' ? "hidden" : ""}`} style={{ height }}>
           <Markdown content={content || placeholder} />
         </div>
