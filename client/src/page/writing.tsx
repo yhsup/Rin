@@ -16,7 +16,7 @@ import { siteName } from "../utils/constants";
 import mermaid from 'mermaid';
 import { MarkdownEditor } from '../components/markdown_editor';
 
-// --- 发布逻辑 ---
+// --- 发布/更新逻辑保持不变 ---
 async function publish({
   title, alias, listed, content, summary, tags, draft, createdAt, onCompleted, showAlert
 }: {
@@ -38,7 +38,6 @@ async function publish({
   }
 }
 
-// --- 更新逻辑 ---
 async function update({
   id, title, alias, content, summary, tags, listed, draft, createdAt, onCompleted, showAlert
 }: {
@@ -60,7 +59,6 @@ async function update({
   }
 }
 
-// --- 写作页面主组件 ---
 export function WritingPage({ id }: { id?: number }) {
   const { t } = useTranslation();
   const cache = Cache.with(id);
@@ -75,7 +73,6 @@ export function WritingPage({ id }: { id?: number }) {
   const [publishing, setPublishing] = useState(false)
   const { showAlert, AlertUI } = useAlert()
 
-  // 辅助函数：将 Markdown 转换为摘要纯文本
   const generateAutoSummary = (text: string) => {
     let cleaned = text
       .replace(/!\[.*?\]\(.*?\)/g, '[图片]')
@@ -85,40 +82,24 @@ export function WritingPage({ id }: { id?: number }) {
       .replace(/[#*`~>]/g, '')
       .replace(/\s+/g, ' ')
       .trim();
-
     const summaryResult = cleaned.slice(0, 150);
-    if (!summaryResult) {
-      if (text.includes('|')) return "[表格]";
-      if (text.includes('![')) return "[图片]";
-      return "";
-    }
-    return summaryResult;
+    return summaryResult || (text.includes('|') ? "[表格]" : text.includes('![') ? "[图片]" : "");
   }
 
   function publishButton() {
     if (publishing) return;
-    const tagsplit = tags.split("#").filter((tag) => tag !== "").map((tag) => tag.trim()) || [];
-    
-    // 如果没有输入简介，执行自动提取逻辑
+    const tagsplit = tags.split("#").filter((tag) => tag !== "").map((tag) => tag.trim());
     const finalSummary = summary.trim() === "" ? generateAutoSummary(content) : summary;
-
     setPublishing(true);
-    const commonProps = { 
-      title, content, summary: finalSummary, alias, tags: tagsplit, 
-      draft, listed, createdAt, showAlert, 
-      onCompleted: () => setPublishing(false) 
-    };
-    
-    if (id !== undefined) {
-      update({ id, ...commonProps });
-    } else {
+    const commonProps = { title, content, summary: finalSummary, alias, tags: tagsplit, draft, listed, createdAt, showAlert, onCompleted: () => setPublishing(false) };
+    if (id !== undefined) update({ id, ...commonProps });
+    else {
       if (!title) { showAlert(t("title_empty")); setPublishing(false); return; }
       if (!content) { showAlert(t("content.empty")); setPublishing(false); return; }
       publish(commonProps);
     }
   }
 
-  // 初始化数据：回滚为最稳健的初始化方式
   useEffect(() => {
     if (id) {
       client.feed({ id }).get({ headers: headersWithAuth() }).then(({ data }) => {
@@ -134,7 +115,7 @@ export function WritingPage({ id }: { id?: number }) {
         }
       });
     }
-  }, []); // 依赖项留空，防止编辑时内容抖动覆盖
+  }, []);
 
   const debouncedUpdate = useCallback(
     _.debounce(() => {
@@ -144,11 +125,8 @@ export function WritingPage({ id }: { id?: number }) {
     []
   );
 
-  useEffect(() => {
-    debouncedUpdate();
-  }, [content, debouncedUpdate]);
+  useEffect(() => { debouncedUpdate(); }, [content, debouncedUpdate]);
 
-  // 重要修复：使用函数形式 render 而不是内嵌组件声明，防止渲染时 Input 失去焦点和编辑器重置
   function renderMetaInput({ className }: { className?: string }) {
     return (
       <div className={className}>
@@ -176,39 +154,24 @@ export function WritingPage({ id }: { id?: number }) {
     <>
       <Helmet>
         <title>{`${t('writing')} - ${process.env.NAME}`}</title>
-        <meta property="og:site_name" content={siteName} />
       </Helmet>
-      
       <div className="grid grid-cols-1 md:grid-cols-3 t-primary mt-2">
         <div className="col-span-2 pb-8">
           <div className="bg-w rounded-2xl shadow-xl shadow-light p-4">
-            {/* 移动端 Meta 输入 */}
             {renderMetaInput({ className: "visible md:hidden mb-8" })}
-            
             <MarkdownEditor content={content} setContent={setContent} height='600px' />
-            
             <div className="visible md:hidden flex flex-row justify-center mt-8">
-              <button
-                onClick={publishButton}
-                disabled={publishing}
-                className="basis-1/2 bg-theme text-white py-4 rounded-full shadow-xl shadow-light flex flex-row justify-center items-center space-x-2"
-              >
+              <button onClick={publishButton} disabled={publishing} className="basis-1/2 bg-theme text-white py-4 rounded-full shadow-xl shadow-light flex flex-row justify-center items-center space-x-2">
                 {publishing && <Loading type="spin" height={16} width={16} />}
                 <span>{id !== undefined ? t('update.title') : t('publish.title')}</span>
               </button>
             </div>
           </div>
         </div>
-
-        {/* 电脑端右侧侧边栏 */}
         <div className="hidden md:visible max-w-96 md:flex flex-col">
           {renderMetaInput({ className: "bg-w rounded-2xl shadow-xl shadow-light p-4 mx-8" })}
           <div className="flex flex-row justify-center mt-8 px-8">
-            <button
-              onClick={publishButton}
-              disabled={publishing}
-              className="w-full bg-theme text-white py-4 rounded-full shadow-xl shadow-light flex flex-row justify-center items-center space-x-2 hover:opacity-90 transition-opacity"
-            >
+            <button onClick={publishButton} disabled={publishing} className="w-full bg-theme text-white py-4 rounded-full shadow-xl shadow-light flex flex-row justify-center items-center space-x-2 hover:opacity-90 transition-opacity">
               {publishing && <Loading type="spin" height={16} width={16} />}
               <span>{id !== undefined ? t('update.title') : t('publish.title')}</span>
             </button>
