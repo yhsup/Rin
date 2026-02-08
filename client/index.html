@@ -12,20 +12,46 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer/dist/APlayer.min.css">
     
     <style>
-      /* 【新增】微调播放器和看板娘层级，确保不遮挡点击 */
+      /* 【修改】确保播放器在右下角，并设置层级 */
       .aplayer.aplayer-fixed {
         z-index: 10000 !important;
+        left: auto !important; /* 取消左侧定位 */
+        right: 0 !important;   /* 固定到右侧 */
       }
+      
+      /* 【修改】看板娘容器层级 */
       #live2d-widget {
         pointer-events: auto !important;
+        z-index: 9999 !important;
+      }
+
+      /* 如果你觉得音乐按钮太靠边，可以微调这个数值 */
+      .aplayer.aplayer-fixed .aplayer-lrc {
+        right: 10px !important;
+        left: auto !important;
       }
     </style>
   </head>
   <body>
     <div id="root"></div>
 
+    <script>
+      window.live2d_settings = {
+        modelId: 1,
+        modelTexturesId: 87,
+        widgetsConfig: {
+          position: 'right',    // 靠右显示
+          width: '150px',       // 宽度从默认200-300调小到150
+          height: '220px',      // 高度同比例调小
+          bottom: '0px'         // 距离底部距离
+        },
+        mobile: { show: false } // 建议手机端关闭，否则太占空间
+      };
+    </script>
+
     <script src="https://cdn.jsdelivr.net/npm/aplayer/dist/APlayer.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/meting@2/dist/Meting.min.js"></script>
+    
     <meting-js
       server="netease"
       type="playlist"
