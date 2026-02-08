@@ -1,6 +1,6 @@
 import Editor from '@monaco-editor/react';
-import { editor, Selection } from 'monaco-editor'; // 引入 Selection 类
-import React, { useRef, useState } from "react"; // 删除了未使用的 useEffect
+import { editor, Selection } from 'monaco-editor';
+import React, { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Loading from 'react-loading';
 import { useColorMode } from "../utils/darkModeUtils";
@@ -104,6 +104,19 @@ export function MarkdownEditor({
     editor.focus();
   };
 
+  // 清除格式逻辑
+  const removeFormatting = () => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const selection = editor.getSelection();
+    const model = editor.getModel();
+    if (!selection || !model) return;
+    const selectedText = model.getValueInRange(selection);
+    const cleanText = selectedText.replace(/<span[^>]*>([\s\S]*?)<\/span>/g, '$1');
+    editor.executeEdits("remove-format", [{ range: selection, text: cleanText, forceMoveMarkers: true }]);
+    editor.focus();
+  };
+
   const insertTable = () => {
     const editor = editorRef.current;
     if (!editor) return;
@@ -170,11 +183,7 @@ export function MarkdownEditor({
     <div className="flex flex-col gap-2">
       <div className="flex flex-row items-center space-x-2 border-b pb-2 dark:border-zinc-800">
         {['edit', 'preview', 'comparison'].map((m) => (
-          <button 
-            key={m} 
-            className={`px-3 py-1 text-xs rounded-md transition-all ${preview === m ? "bg-theme text-white shadow-md" : "hover:bg-gray-100 dark:hover:bg-zinc-800"}`} 
-            onClick={() => setPreview(m as any)}
-          >
+          <button key={m} className={`px-3 py-1 text-xs rounded-md transition-all ${preview === m ? "bg-theme text-white shadow-md" : "hover:bg-gray-100 dark:hover:bg-zinc-800"}`} onClick={() => setPreview(m as any)}>
             {t(m) || m}
           </button>
         ))}
@@ -189,6 +198,8 @@ export function MarkdownEditor({
 
       <div className={`grid grid-cols-1 ${preview === 'comparison' ? "lg:grid-cols-2" : ""} gap-4`}>
         <div className={preview === 'preview' ? "hidden" : "flex flex-col"}>
+          
+          {/* 工具栏更新：找回高亮按钮 */}
           <div className="flex flex-wrap items-center gap-y-2 gap-x-1 mb-2 p-2 bg-gray-50 dark:bg-zinc-900/50 rounded-xl border dark:border-zinc-800">
             <UploadImageButton />
             <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
@@ -196,9 +207,19 @@ export function MarkdownEditor({
             <button onClick={() => applyStyle('italic')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded" title="斜体"><i className="ri-italic" /></button>
             <button onClick={() => applyStyle('underline')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded" title="下划线"><i className="ri-underline" /></button>
             <button onClick={insertTable} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded" title="插入表格"><i className="ri-table-line" /></button>
+            
+            <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
+            
+            {/* 颜色与高亮组 */}
             <div className="flex items-center px-1">
               <input type="color" className="w-5 h-5 p-0 border-none cursor-pointer bg-transparent" onChange={(e) => applySpanStyle(`color: ${e.target.value}`)} title="颜色" />
             </div>
+            <button onClick={() => applySpanStyle('background-color: #ffff00; color: #000')} className="p-1.5 bg-yellow-200 hover:bg-yellow-300 rounded text-black shadow-sm" title="高亮">
+              <i className="ri-mark-pen-line text-sm" />
+            </button>
+            <button onClick={removeFormatting} className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 rounded" title="清除格式">
+              <i className="ri-format-clear" />
+            </button>
           </div>
 
           <div 
@@ -214,28 +235,13 @@ export function MarkdownEditor({
                 uploadImage(files[i], (url) => {
                   setUploading(false);
                   const selection = editor.getSelection() || new Selection(1, 1, 1, 1);
-                  editor.executeEdits(undefined, [{
-                    range: selection,
-                    text: `![${files[i].name}](${url})\n`,
-                  }]);
+                  editor.executeEdits(undefined, [{ range: selection, text: `![${files[i].name}](${url})\n` }]);
                 }, () => setUploading(false));
               }
             }}
           >
-            <Editor 
-              onMount={handleEditorMount} 
-              height={height} 
-              defaultLanguage="markdown" 
-              value={content} 
-              theme={colorMode === "dark" ? "vs-dark" : "light"}
-              options={{ 
-                wordWrap: "on", 
-                fontFamily, 
-                minimap: { enabled: false }, 
-                automaticLayout: true,
-                lineNumbers: "on",
-                dropIntoEditor: { enabled: true }
-              }} 
+            <Editor onMount={handleEditorMount} height={height} defaultLanguage="markdown" value={content} theme={colorMode === "dark" ? "vs-dark" : "light"}
+              options={{ wordWrap: "on", fontFamily, minimap: { enabled: false }, automaticLayout: true, lineNumbers: "on", dropIntoEditor: { enabled: true } }} 
             />
           </div>
         </div>
