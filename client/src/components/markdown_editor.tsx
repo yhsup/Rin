@@ -80,10 +80,16 @@ export function MarkdownEditor({
     };
 
     const s = styleMap[type];
-    const newText = s.reg.test(selectedText) ? selectedText.replace(s.reg, '$1') : `${s.b}${selectedText}${s.a}`;
+    const isRemoving = s.reg.test(selectedText);
+    const newText = isRemoving ? selectedText.replace(s.reg, '$1') : `${s.b}${selectedText}${s.a}`;
+    
     editor.executeEdits("style", [{ range: selection, text: newText, forceMoveMarkers: true }]);
+    
+    // 强制同步选区，确保状态感应函数能正确读到位置
+    setTimeout(() => {
+        checkStyleStatus(editor);
+    }, 10);
     editor.focus();
-    checkStyleStatus(editor);
   }, [checkStyleStatus]);
 
   const insertMathTemplate = useCallback((template: string, placeholder?: string) => {
@@ -168,7 +174,7 @@ export function MarkdownEditor({
         const coords = editor.getScrolledVisiblePosition(e.selection.getStartPosition());
         if (coords) {
           const rect = editor.getDomNode()?.getBoundingClientRect();
-          setBubblePos(rect ? { x: coords.left + rect.left, y: coords.top + rect.top - 50 } : null);
+          setBubblePos(rect ? { x: coords.left + rect.left, y: coords.top + rect.top - 55 } : null);
         }
       } else {
         setBubblePos(null);
@@ -182,25 +188,23 @@ export function MarkdownEditor({
 
   return (
     <div className="flex flex-col gap-2 relative">
-      {/* 增强型悬浮工具栏 (Bubble Menu) */}
       {bubblePos && (
-        <div className="fixed z-[100] flex items-center gap-0.5 bg-white dark:bg-zinc-800 shadow-2xl border dark:border-zinc-700 p-1 rounded-xl animate-in fade-in zoom-in-95 duration-100"
+        <div className="fixed z-[100] flex items-center gap-0.5 bg-white dark:bg-zinc-800 shadow-2xl border dark:border-zinc-700 p-1.5 rounded-xl animate-in fade-in zoom-in-95 duration-100"
              style={{ left: bubblePos.x, top: bubblePos.y }}>
           <ToolbarButton active={activeStyles.bold} onClick={() => applyStyle('bold')} icon="ri-bold" sm />
           <ToolbarButton active={activeStyles.italic} onClick={() => applyStyle('italic')} icon="ri-italic" sm />
           <ToolbarButton active={activeStyles.underline} onClick={() => applyStyle('underline')} icon="ri-underline" sm />
           <ToolbarButton active={activeStyles.strikethrough} onClick={() => applyStyle('strikethrough')} icon="ri-strikethrough" sm />
-          <div className="w-[1px] h-3 bg-gray-200 dark:bg-zinc-700 mx-0.5" />
+          <div className="w-[1px] h-3 bg-gray-200 dark:bg-zinc-700 mx-1" />
           <ToolbarButton active={activeStyles.sup} onClick={() => applyStyle('sup')} icon="ri-superscript" sm />
           <ToolbarButton active={activeStyles.sub} onClick={() => applyStyle('sub')} icon="ri-subscript" sm />
-          <div className="w-[1px] h-3 bg-gray-200 dark:bg-zinc-700 mx-0.5" />
-          <button onClick={() => insertMathTemplate("$公式$", "公式")} className="p-1 text-theme hover:bg-gray-100 dark:hover:bg-zinc-700 rounded transition-colors">
+          <div className="w-[1px] h-3 bg-gray-200 dark:bg-zinc-700 mx-1" />
+          <button onClick={() => insertMathTemplate("$公式$", "公式")} className="p-1 text-theme hover:bg-gray-100 dark:hover:bg-zinc-700 rounded transition-colors" title="快速插入公式">
             <i className="ri-functions text-sm" />
           </button>
         </div>
       )}
 
-      {/* 顶部主工具栏 */}
       <div className="flex flex-wrap items-center gap-1 p-2 bg-gray-50 dark:bg-zinc-900/50 rounded-xl border dark:border-zinc-800">
         <label className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded text-theme cursor-pointer" title="上传图片">
           <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files?.[0])} />
@@ -217,7 +221,7 @@ export function MarkdownEditor({
         <ToolbarButton active={activeStyles.sub} onClick={() => applyStyle('sub')} icon="ri-subscript" />
         
         <div className="flex-grow" />
-        {uploading && <div className="flex items-center gap-2 text-[10px] text-theme animate-pulse"><Loading type="spin" color="#FC466B" height={12} width={12} /></div>}
+        {uploading && <div className="flex items-center gap-2"><Loading type="spin" color="#FC466B" height={16} width={16} /></div>}
         
         <div className="relative group">
           <button className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded flex items-center gap-1">
