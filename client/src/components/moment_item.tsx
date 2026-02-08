@@ -39,7 +39,7 @@ export function MomentItem({
                     />
                     <div>
                         <p className="t-primary">
-                            {moment.user.username}
+                          {moment.user.username === 'yhsup' ? '站长' : moment.user.username}
                         </p>
                         <p className="space-x-2 t-secondary text-sm"> 
                             <span title={new Date(createdAt).toLocaleString()}> 
