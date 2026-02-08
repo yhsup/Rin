@@ -3,49 +3,76 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link
-      href="https://cdnjs.cloudflare.com/ajax/libs/remixicon/4.2.0/remixicon.min.css"
-      rel="stylesheet"
-    />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/remixicon/4.2.0/remixicon.min.css" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&display=swap" rel="stylesheet">
-
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer/dist/APlayer.min.css">
     
     <style>
-      /* 【修改】确保播放器在右下角，并设置层级 */
-      .aplayer.aplayer-fixed {
-        z-index: 10000 !important;
-        left: auto !important; /* 取消左侧定位 */
-        right: 0 !important;   /* 固定到右侧 */
+      /* --- 1. 音乐插件：按钮移至右上角，歌词保留在右下角 --- */
+      .aplayer.aplayer-fixed.aplayer-narrow .aplayer-body {
+        top: 20px !important;    /* 【位置】距离顶部 20px */
+        right: 0 !important;     /* 【位置】固定在右侧 */
+        left: auto !important;
+        bottom: auto !important;
       }
       
-      /* 【修改】看板娘容器层级 */
+      /* 强制歌词容器固定在右下角 */
+      .aplayer.aplayer-fixed .aplayer-lrc {
+        bottom: 20px !important; /* 歌词距离底部距离 */
+        right: 20px !important;  /* 歌词距离右侧距离 */
+        left: auto !important;
+        width: auto !important;
+        z-index: 10000 !important;
+        text-shadow: 0 1px 12px rgba(0,0,0,0.5); /* 增强歌词可读性 */
+      }
+
+      /* --- 2. 天气插件：放到右下角，音乐歌词上方 --- */
+      #weather-container {
+        position: fixed;
+        right: 20px;            /* 距离右侧 20px */
+        bottom: 80px;           /* 【位置】位于底部，避开歌词位置 */
+        width: 160px;           /* 【大小修改】天气插件宽度 */
+        z-index: 9998;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.1);
+        backdrop-filter: blur(4px);
+      }
+
+      /* --- 3. 看板娘：大小与层级 --- */
       #live2d-widget {
         pointer-events: auto !important;
         z-index: 9999 !important;
-      }
-
-      /* 如果你觉得音乐按钮太靠边，可以微调这个数值 */
-      .aplayer.aplayer-fixed .aplayer-lrc {
-        right: 10px !important;
-        left: auto !important;
       }
     </style>
   </head>
   <body>
     <div id="root"></div>
 
+    <div id="weather-container">
+      <a class="weatherwidget-io" href="https://forecast7.com/en/40d71n74d01/new-york/" 
+         data-label_1="LOCAL" 
+         data-label_2="WEATHER" 
+         data-font="Roboto" 
+         data-icons="Climacons Animated" 
+         data-mode="Current" 
+         data-theme="pure" >WEATHER</a>
+      <script>
+      !function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0];if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src='https://weatherwidget.io/js/widget.min.js';fjs.parentNode.insertBefore(js,fjs);}}(document,'script','weatherwidget-io-js');
+      </script>
+    </div>
+
     <script>
       window.live2d_settings = {
         modelId: 1,
         modelTexturesId: 87,
         widgetsConfig: {
-          position: 'right',    // 靠右显示
-          width: '150px',       // 宽度从默认200-300调小到150
-          height: '220px',      // 高度同比例调小
-          bottom: '0px'         // 距离底部距离
+          position: 'right', 
+          width: '120px',       /* 【大小修改】看板娘宽度变小 */
+          height: '180px',      /* 【大小修改】看板娘高度变小 */
+          bottom: '150px'       /* 【位置】置于天气插件上方，防止重叠 */
         },
-        mobile: { show: false } // 建议手机端关闭，否则太占空间
+        mobile: { show: false }
       };
     </script>
 
@@ -58,13 +85,10 @@
       id="2195513251" 
       fixed="true"
       mini="true"
-      autoplay="false"
-      theme="#6366f1"
-      list-folded="true">
+      theme="#6366f1">
     </meting-js>
 
     <script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script>
-
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
