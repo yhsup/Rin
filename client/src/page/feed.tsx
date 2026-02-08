@@ -331,7 +331,7 @@ export function FeedPage({ id, TOC, clean }: { id: string, TOC: () => JSX.Elemen
                     />
                     <div className="ml-2">
                       <span className="text-gray-400 text-sm cursor-default">
-                        {feed.user.username === 'WINP' ? '站长' : feed.user.username}
+                        {feed.user.username === 'yhsup' ? '站长' : feed.user.username}
                       </span>
                     </div>
                   </div>
@@ -596,7 +596,7 @@ function CommentItem({
       <div className="flex flex-col flex-1 w-0 ml-2 bg-w rounded-xl p-4">
         <div className="flex flex-row">
           <span className="t-primary text-base font-bold">
-            {comment.user.username === 'WINP' ? '站长' : comment.user.username}
+            {comment.user.username === 'yhsup' ? '站长' : comment.user.username}
           </span>
           <div className="flex-1 w-0" />
           <span
