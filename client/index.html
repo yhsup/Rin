@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer/dist/APlayer.min.css">
     
     <style>
-      /* --- 1. 音乐插件：向左移动 100px 左右 --- */
+      /* --- 1. 音乐插件 --- */
       .aplayer.aplayer-fixed.aplayer-narrow .aplayer-body,
       .aplayer.aplayer-fixed.aplayer-narrow .aplayer-pic {
         border-radius: 50% !important; 
@@ -17,12 +17,11 @@
 
       .aplayer.aplayer-fixed.aplayer-narrow .aplayer-body {
         top: 12px !important;
-        /* 【位置修改】设为 115px，确保在导航栏靠左的位置 */
         right: 200px !important; 
         left: auto !important;
         bottom: auto !important;
         width: 40px !important;  
-        height: 65px !important;
+        height: 40px !important; /* 修正：之前设为 65px 会导致圆形拉伸成椭圆，这里改回 40px */
         background: rgba(255, 255, 255, 0.15) !important;
         backdrop-filter: blur(10px);
         border: 1px solid rgba(255, 255, 255, 0.2);
@@ -30,18 +29,25 @@
         transition: all 0.3s ease;
       }
 
-      /* 歌词固定在右下角 */
       .aplayer.aplayer-fixed .aplayer-lrc {
         bottom: 25px !important;
         right: 25px !important;
         z-index: 10001 !important;
       }
 
-      /* --- 2. 看板娘按钮精简 --- */
-      /* 隐藏第1个(聊天)、第2个(飞机/换装)、第5个(关于)按钮 */
-      #waifu-tool .fa-comment, 
-      #waifu-tool .fa-paper-plane,
-      #waifu-tool .fa-info-circle,
+      /* --- 2. 强制控制看板娘大小 (CSS 方案) --- */
+      /* 这里的选择器是该脚本生成的通用类名 */
+      #waifu, #live2d {
+        width: 50px !important;   /* 你要求的宽度 */
+        height: 105px !important; /* 你要求的高度 */
+      }
+
+      #waifu-tips {
+        width: 100px !important;  /* 提示框宽度可以比人物稍宽，否则字看不清 */
+        font-size: 12px !important;
+      }
+
+      /* --- 3. 看板娘按钮精简 --- */
       #waifu-tool span:nth-child(1), 
       #waifu-tool span:nth-child(2),
       #waifu-tool span:nth-child(5) {
@@ -53,9 +59,9 @@
         z-index: 9999 !important;
       }
 
-      /* --- 3. 移动端适配 --- */
+      /* --- 4. 移动端适配 --- */
       @media (max-width: 768px) {
-        #live2d-widget, .aplayer-lrc { display: none !important; }
+        #waifu, #live2d, #live2d-widget, .aplayer-lrc { display: none !important; }
         .aplayer.aplayer-fixed.aplayer-narrow .aplayer-body {
           top: auto !important;
           bottom: 25px !important;
@@ -68,37 +74,34 @@
     <div id="root"></div>
 
     <script>
+      /* 这里的参数主要用于逻辑控制 */
       window.live2d_settings = {
         modelId: 2,
         tips: true,
         widgetsConfig: { 
           position: 'right', 
-          /* 【大小修改】整体缩小看板娘尺寸 */
-          width: '50px', 
-          height: '105px', 
           bottom: '0px' 
         },
         welcomeTips: {          
-        morning: '早上好！又是充满活力的一天~',          
-        noon: '中午好，别忘了休息一下哦',          
-        afternoon: '下午茶时间到了，要来杯咖啡吗？',          
-        evening: '晚上好，今天过得开心吗？',          
-        night: '夜深了，早点休息，晚安~',          
-        other: '欢迎来到我的博客！'        
+          morning: '早上好！又是充满活力的一天~',          
+          noon: '中午好，别忘了休息一下哦',          
+          afternoon: '下午茶时间到了，要来杯咖啡吗？',          
+          evening: '晚上好，今天过得开心吗？',          
+          night: '夜深了，早点休息，晚安~',          
+          other: '欢迎来到我的博客！'        
         },        
         clickTips: [          
-        '哎呀，别乱摸啦~',          
-        '你在看哪里呀？',          
-        '要听听音乐放松一下吗？',          
-        '有什么我可以帮你的吗？'        
+          '哎呀，别乱摸啦~',          
+          '你在看哪里呀？',          
+          '要听听音乐放松一下吗？',          
+          '有什么我可以帮你的吗？'        
         ],        
         mobile: { show: false }      
-        };
+      };
     </script>
 
     <script src="https://cdn.jsdelivr.net/npm/aplayer/dist/APlayer.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/meting@2/dist/Meting.min.js"></script>
-    
     <meting-js server="netease" type="playlist" id="2195513251" fixed="true" mini="true" theme="#6366f1"></meting-js>
 
     <script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script>
