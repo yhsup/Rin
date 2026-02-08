@@ -29,6 +29,7 @@
         transition: all 0.3s ease;
       }
 
+      /* 歌词区域 */
       .aplayer.aplayer-fixed .aplayer-lrc {
         bottom: 25px !important;
         right: 25px !important;
@@ -38,9 +39,31 @@
         overflow: visible !important;
         height: auto !important;
         white-space: normal !important;
-        /* 【修改】居中显示 */
         text-align: center !important; 
         background: none !important;
+      }
+
+      /* --- 新增：关闭按钮样式 --- */
+      .close-btn {
+        position: absolute;
+        cursor: pointer;
+        color: #999;
+        font-size: 12px;
+        z-index: 10005;
+        transition: color 0.3s;
+      }
+      .close-btn:hover { color: #ff4d4f; }
+
+      /* 音乐插件关闭按钮 (在圆形播放器右上角) */
+      .music-close {
+        top: 5px;
+        right: 195px; /* 对应播放器的 200px 稍微偏移 */
+      }
+
+      /* 歌词关闭按钮 (在歌词上方) */
+      .lrc-close {
+        bottom: 85px; /* 在歌词文字上方 */
+        right: 65px;  /* 居中对齐参考 */
       }
 
       .aplayer.aplayer-fixed .aplayer-lrc .aplayer-lrc-contents {
@@ -60,12 +83,10 @@
         display: none;
       }
 
-      /* 确保当前播放的歌词可见且换行 */
       .aplayer.aplayer-fixed .aplayer-lrc p.aplayer-lrc-current {
         opacity: 1;
         display: block;
         font-size: 14px;
-        /* 【修改】颜色改为浅灰色 */
         color: #999 !important; 
       }
 
@@ -94,7 +115,7 @@
 
       /* --- 4. 移动端适配 --- */
       @media (max-width: 768px) {
-        #waifu, #live2d, #live2d-widget, .aplayer-lrc { display: none !important; }
+        #waifu, #live2d, #live2d-widget, .aplayer-lrc, .close-btn { display: none !important; }
         .aplayer.aplayer-fixed.aplayer-narrow .aplayer-body {
           top: auto !important;
           bottom: 25px !important;
@@ -104,6 +125,9 @@
     </style>
   </head>
   <body>
+    <div class="close-btn music-close" onclick="closeMusic()" title="关闭播放器"><i class="ri-close-circle-fill"></i></div>
+    <div class="close-btn lrc-close" id="lrcBtn" onclick="closeLrc()" title="隐藏歌词"><i class="ri-eye-off-fill"></i></div>
+
     <div id="root"></div>
 
     <script>
@@ -113,11 +137,28 @@
         widgetsConfig: { position: 'right', bottom: '0px' },     
         mobile: { show: false }      
       };
+
+      // 关闭逻辑
+      function closeMusic() {
+        const music = document.querySelector('.aplayer-fixed');
+        const btn = document.querySelector('.music-close');
+        if(music) music.style.display = 'none';
+        if(btn) btn.style.display = 'none';
+        closeLrc(); // 播放器关了，歌词也跟着关
+      }
+
+      function closeLrc() {
+        const lrc = document.querySelector('.aplayer-lrc');
+        const lrcBtn = document.getElementById('lrcBtn');
+        if(lrc) lrc.style.opacity = '0'; // 使用透明度隐藏保持布局
+        if(lrc) lrc.style.pointerEvents = 'none';
+        if(lrcBtn) lrcBtn.style.display = 'none';
+      }
     </script>
 
     <script src="https://cdn.jsdelivr.net/npm/aplayer/dist/APlayer.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/meting@2/dist/Meting.min.js"></script>
-    <meting-js server="netease" type="playlist" id="2195513251" fixed="true" mini="true" theme="#6366f1"></meting-js>
+    <meting-js id="music-player" server="netease" type="playlist" id="2195513251" fixed="true" mini="true" theme="#6366f1"></meting-js>
 
     <script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script>
     <script type="module" src="/src/main.tsx"></script>
