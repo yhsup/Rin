@@ -26,7 +26,7 @@ export function MarkdownEditor({
   const { t } = useTranslation();
   const colorMode = useColorMode();
   const editorRef = useRef<editor.IStandaloneCodeEditor>();
-  const isComposingRef = useRef(false); // 已接入逻辑，解决 TS6133 错误
+  const isComposingRef = useRef(false); 
   const [preview, setPreview] = useState<'edit' | 'preview' | 'comparison'>('edit');
   const [uploading, setUploading] = useState(false);
   const [currentFont, setCurrentFont] = useState(defaultFontFamily);
@@ -68,10 +68,33 @@ export function MarkdownEditor({
     const selection = editor.getSelection();
     const model = editor.getModel();
     if (!selection || !model) return;
-    const styles: Record<string, [string, string]> = { bold: ['**', '**'], italic: ['*', '*'], underline: ['<u>', '</u>'] };
+    const styles: Record<string, [string, string]> = { 
+      bold: ['**', '**'], italic: ['*', '*'], underline: ['<u>', '</u>'],
+      strikethrough: ['~~', '~~'], sup: ['<sup>', '</sup>'], sub: ['<sub>', '</sub>'],
+    };
     const [before, after] = styles[type];
     editor.executeEdits("style", [{ range: selection, text: `${before}${model.getValueInRange(selection)}${after}`, forceMoveMarkers: true }]);
     editor.focus();
+  };
+
+  // --- 新增/找回插入表格逻辑 ---
+  const insertTable = () => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const input = window.prompt("请输入行列 (如 3*3):", "3*3");
+    if (!input) return;
+    const [rows, cols] = input.split('*').map(Number);
+    if (isNaN(rows) || isNaN(cols)) return;
+    let tableMd = "| " + Array(cols).fill("Header").join(" | ") + " |\n";
+    tableMd += "| " + Array(cols).fill("---").join(" | ") + " |\n";
+    for (let i = 0; i < rows; i++) {
+      tableMd += "| " + Array(cols).fill("Content").join(" | ") + " |\n";
+    }
+    const selection = editor.getSelection();
+    if (selection) {
+      editor.executeEdits("table", [{ range: selection, text: tableMd.trim(), forceMoveMarkers: true }]);
+      editor.focus();
+    }
   };
 
   const applySpanStyle = (styleStr: string) => {
@@ -90,7 +113,7 @@ export function MarkdownEditor({
     const selection = editor.getSelection();
     const model = editor.getModel();
     if (!selection || !model) return;
-    const cleanText = model.getValueInRange(selection).replace(/<span[^>]*>([\s\S]*?)<\/span>/g, '$1');
+    const cleanText = model.getValueInRange(selection).replace(/<[^>]*>/g, '').replace(/(\*\*|\*|~~)/g, '');
     editor.executeEdits("remove-format", [{ range: selection, text: cleanText, forceMoveMarkers: true }]);
     editor.focus();
   };
@@ -117,24 +140,16 @@ export function MarkdownEditor({
 
   const handleEditorMount = (editor: editor.IStandaloneCodeEditor) => {
     editorRef.current = editor;
-
-    // 解决 TS6133：在 Composition 事件中使用 isComposingRef
     const inputElement = editor.getDomNode()?.querySelector('textarea');
     if (inputElement) {
-      inputElement.addEventListener('compositionstart', () => {
-        isComposingRef.current = true;
-      });
+      inputElement.addEventListener('compositionstart', () => { isComposingRef.current = true; });
       inputElement.addEventListener('compositionend', () => {
         isComposingRef.current = false;
         setContent(editor.getValue());
       });
     }
-
     editor.onDidChangeModelContent(() => {
-      // 只有不在输入法组合状态时才更新内容
-      if (!isComposingRef.current) {
-        setContent(editor.getValue());
-      }
+      if (!isComposingRef.current) { setContent(editor.getValue()); }
     });
   };
 
@@ -155,32 +170,33 @@ export function MarkdownEditor({
           <div className="flex flex-wrap items-center gap-y-2 gap-x-1 mb-2 p-2 bg-gray-50 dark:bg-zinc-900/50 rounded-xl border dark:border-zinc-800">
             <UploadImageButton />
             <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
+            
             <select value={currentFont} onChange={(e) => setCurrentFont(e.target.value)} className="text-xs bg-transparent border border-gray-300 dark:border-zinc-700 rounded px-1 py-1 focus:outline-none dark:text-white">
               {fontOptions.map(f => <option key={f.value} value={f.value} className="dark:bg-zinc-900">{f.name}</option>)}
             </select>
+            
             <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
-            <button onClick={() => applyStyle('bold')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white"><i className="ri-bold" /></button>
-            <button onClick={() => applyStyle('italic')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white"><i className="ri-italic" /></button>
-            <button onClick={() => applySpanStyle('background-color: #ffff00; color: #000')} className="p-1.5 bg-yellow-200 hover:bg-yellow-300 rounded text-black"><i className="ri-mark-pen-line" /></button>
-            <button onClick={removeFormatting} className="p-1.5 hover:bg-red-100 text-red-500 rounded"><i className="ri-format-clear" /></button>
+            
+            <button onClick={() => applyStyle('bold')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white" title="加粗"><i className="ri-bold" /></button>
+            <button onClick={() => applyStyle('italic')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white" title="斜体"><i className="ri-italic" /></button>
+            <button onClick={() => applyStyle('underline')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white" title="下划线"><i className="ri-underline" /></button>
+            <button onClick={() => applyStyle('strikethrough')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white" title="中划线"><i className="ri-strikethrough" /></button>
+            <button onClick={insertTable} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white" title="插入表格"><i className="ri-table-line" /></button>
+            
+            <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
+            
+            <button onClick={() => applyStyle('sup')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white" title="上标"><i className="ri-superscript" /></button>
+            <button onClick={() => applyStyle('sub')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white" title="下标"><i className="ri-subscript" /></button>
+            
+            <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
+            
+            <button onClick={() => applySpanStyle('background-color: #ffff00; color: #000')} className="p-1.5 bg-yellow-200 hover:bg-yellow-300 rounded text-black" title="黄色高亮"><i className="ri-mark-pen-line" /></button>
+            <button onClick={removeFormatting} className="p-1.5 hover:bg-red-100 text-red-500 rounded" title="清除格式"><i className="ri-format-clear" /></button>
           </div>
+
           <div className="border rounded-xl overflow-hidden dark:border-zinc-800 bg-white dark:bg-[#1e1e1e]" onPaste={handlePaste}>
-            <Editor 
-              onMount={handleEditorMount} 
-              height={height} 
-              defaultLanguage="markdown" 
-              value={content} 
-              theme={colorMode === "dark" ? "vs-dark" : "light"}
-              options={{ 
-                wordWrap: "on", 
-                fontFamily: currentFont, 
-                fontLigatures: true, 
-                fontSize: 14, 
-                minimap: { enabled: false }, 
-                automaticLayout: true,
-                lineNumbers: "on",
-                padding: { top: 10 }
-              }} 
+            <Editor onMount={handleEditorMount} height={height} defaultLanguage="markdown" value={content} theme={colorMode === "dark" ? "vs-dark" : "light"}
+              options={{ wordWrap: "on", fontFamily: currentFont, fontLigatures: true, fontSize: 14, minimap: { enabled: false }, automaticLayout: true, lineNumbers: "on", padding: { top: 10 } }} 
             />
           </div>
         </div>
