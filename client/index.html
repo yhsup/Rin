@@ -8,6 +8,17 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer/dist/APlayer.min.css">
     
     <style>
+      /* --- 0. 全局 macOS 鼠标样式 --- */
+      html, body {
+        /* 默认箭头 */
+        cursor: url('https://cur.cursors-4u.net/mac/mac-2/mac176.cur'), auto !important;
+      }
+
+      a, button, .aplayer-pic, #waifu, meting-js, [role="button"] {
+        /* 悬停手型 */
+        cursor: url('https://cur.cursors-4u.net/mac/mac-2/mac177.cur'), pointer !important;
+      }
+
       /* --- 1. 音乐插件 --- */
       .aplayer.aplayer-fixed.aplayer-narrow .aplayer-body,
       .aplayer.aplayer-fixed.aplayer-narrow .aplayer-pic {
@@ -39,10 +50,9 @@
         text-align: right !important;
       }
 
-      /* 【新增】优化换行后的间距，防止文字重叠 */
       .aplayer.aplayer-fixed .aplayer-lrc p {
-        line-height: 1.6 !important; /* 增加行间距 */
-        margin-bottom: 8px !important; /* 增加段落间距 */
+        line-height: 1.6 !important;
+        margin-bottom: 8px !important;
         overflow: visible !important;
       }
 
@@ -87,10 +97,7 @@
       window.live2d_settings = {
         modelId: 2,
         tips: true,
-        widgetsConfig: { 
-          position: 'right', 
-          bottom: '0px' 
-        },     
+        widgetsConfig: { position: 'right', bottom: '0px' },     
         mobile: { show: false }      
       };
     </script>
