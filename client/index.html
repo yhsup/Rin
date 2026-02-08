@@ -8,63 +8,66 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer/dist/APlayer.min.css">
     
     <style>
-      /* --- 1. 音乐插件默认样式 (PC端嵌入导航栏) --- */
+      /* --- 1. 音乐插件：圆形按钮化并嵌入导航栏右上角 --- */
+      .aplayer.aplayer-fixed.aplayer-narrow .aplayer-body,
+      .aplayer.aplayer-fixed.aplayer-narrow .aplayer-pic {
+        border-radius: 50% !important; 
+        overflow: hidden !important;
+      }
+
       .aplayer.aplayer-fixed.aplayer-narrow .aplayer-body {
-        top: 15px !important;
-        right: 15px !important;
+        top: 12px !important;    /* 对齐导航栏中心线 */
+        right: 25px !important;
         left: auto !important;
         bottom: auto !important;
-        width: 36px !important;
-        height: 36px !important;
-        background: rgba(255, 255, 255, 0.2) !important;
-        backdrop-filter: blur(8px);
-        border-radius: 50%;
+        width: 40px !important;  
+        height: 40px !important;
+        background: rgba(255, 255, 255, 0.15) !important;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
         z-index: 10002 !important;
+        transition: all 0.3s ease;
       }
-      
+
+      /* 悬停放大效果 */
+      .aplayer.aplayer-fixed.aplayer-narrow .aplayer-body:hover {
+        transform: scale(1.1);
+        background: rgba(255, 255, 255, 0.3) !important;
+      }
+
+      /* 隐藏多余 UI */
+      .aplayer.aplayer-fixed.aplayer-narrow .aplayer-info {
+        display: none !important;
+      }
+
+      /* 歌词固定在右下角 */
       .aplayer.aplayer-fixed .aplayer-lrc {
-        bottom: 20px !important;
-        right: 20px !important;
+        bottom: 25px !important;
+        right: 25px !important;
         left: auto !important;
         width: auto !important;
-        pointer-events: none; /* 防止歌词遮挡点击 */
+        pointer-events: none;
+        z-index: 10001 !important;
       }
 
-      /* --- 2. 天气插件默认样式 (PC端嵌入导航栏) --- */
-      #weather-container {
-        position: fixed;
-        top: 15px;
-        left: 80px;
-        width: 140px;
-        height: 32px;
-        z-index: 10001;
-        overflow: hidden;
+      /* --- 2. 看板娘层级 --- */
+      #live2d-widget {
+        pointer-events: auto !important;
+        z-index: 9999 !important;
       }
 
-      /* --- 3. 移动端适配 (核心修改点) --- */
+      /* --- 3. 移动端适配 --- */
       @media (max-width: 768px) {
-        /* 手机端隐藏天气，导航栏放不下 */
-        #weather-container {
+        #live2d-widget, .aplayer-lrc {
           display: none !important;
         }
 
-        /* 手机端看板娘强制隐藏（即使 JS 里没设，CSS 也能强行关掉） */
-        #live2d-widget {
-          display: none !important;
-        }
-
-        /* 手机端音乐按钮移到右下角，避免挡住顶部的返回键或菜单 */
         .aplayer.aplayer-fixed.aplayer-narrow .aplayer-body {
           top: auto !important;
-          bottom: 20px !important;
+          bottom: 25px !important;
           right: 20px !important;
-          width: 45px !important; /* 手机端稍微大一点，方便手指点 */
-          height: 45px !important;
-        }
-
-        /* 手机端隐藏歌词，太占地方 */
-        .aplayer-lrc {
-          display: none !important;
+          width: 50px !important;
+          height: 50px !important;
         }
       }
     </style>
@@ -72,26 +75,17 @@
   <body>
     <div id="root"></div>
 
-    <div id="weather-container">
-      <a class="weatherwidget-io" href="https://forecast7.com/en/40d71n74d01/new-york/" 
-         data-label_1=" " 
-         data-label_2=" " 
-         data-theme="pure" >WEATHER</a>
-      <script>
-      !function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0];if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src='https://weatherwidget.io/js/widget.min.js';fjs.parentNode.insertBefore(js,fjs);}}(document,'script','weatherwidget-io-js');
-      </script>
-    </div>
-
     <script>
       window.live2d_settings = {
-        modelId: 1,
-        widgetsConfig: {
+        modelId: 2,                  /* 【已修改】看板娘模型 ID 改为 2 */
+        modelTexturesId: 0,          /* 默认服装 ID */
+        widgetsConfig: { 
           position: 'right', 
-          width: '100px',
-          height: '150px',
-          bottom: '0px'
+          width: '120px',            /* 稍微调大了一点，因为 Shizuku 模型比原先的略显修长 */
+          height: '180px', 
+          bottom: '0px' 
         },
-        mobile: { show: false } // JS 层级禁用移动端显示
+        mobile: { show: false }
       };
     </script>
 
@@ -108,6 +102,7 @@
     </meting-js>
 
     <script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script>
+    
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
