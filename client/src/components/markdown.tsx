@@ -1,5 +1,5 @@
 import "katex/dist/katex.min.css";
-import React, { cloneElement, isValidElement, useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { base16AteliersulphurpoolLight, vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -16,7 +16,7 @@ import Zoom from "yet-another-react-lightbox/plugins/zoom";
 import "yet-another-react-lightbox/styles.css";
 import { useColorMode } from "../utils/darkModeUtils";
 
-// --- 工具函数 ---
+// --- 工具函数：判断图片在 Markdown 中的上下文 ---
 const countNewlinesBeforeNode = (text: string, offset: number) => {
   let newlinesBefore = 0;
   for (let i = offset - 1; i >= 0; i--) {
@@ -41,20 +41,24 @@ export function Markdown({ content }: { content: string }) {
   const [index, setIndex] = React.useState(-1);
   const slides = useRef<SlideImage[]>();
 
+  // 内容更新时重置灯箱缓存
   useEffect(() => { slides.current = undefined; }, [content]);
 
+  // 灯箱触发函数
   const showLightbox = (src: string | undefined) => {
     if (!slides.current) {
       const parent = document.getElementsByClassName("toc-content")[0];
       if (!parent) return;
       const images = parent.querySelectorAll("img");
-      slides.current = Array.from(images)
+      const mappedSlides: SlideImage[] = Array.from(images)
         .map((image) => ({
           src: image.getAttribute("src") || "",
           alt: image.getAttribute("alt") || "",
-          imageFit: "contain" as const,
+          width: image.naturalWidth || 1200,
+          height: image.naturalHeight || 800,
         }))
         .filter((slide) => slide.src !== "");
+      slides.current = mappedSlides;
     }
     const idx = slides.current?.findIndex((slide) => slide.src === src) ?? -1;
     setIndex(idx);
@@ -79,6 +83,7 @@ export function Markdown({ content }: { content: string }) {
         remarkPlugins={[gfm, remarkBreaks, remarkMermaid, remarkMath, remarkAlert]}
         rehypePlugins={[rehypeKatex, rehypeRaw]}
         components={{
+          // 图片组件：智能缩放 + 点击灯箱
           img({ node, src, ...props }) {
             const offset = node?.position?.start.offset || 0;
             const previousContent = content.slice(0, offset);
@@ -93,10 +98,13 @@ export function Markdown({ content }: { content: string }) {
                   onClick={() => showLightbox(src)}
                   className={`cursor-zoom-in hover:opacity-90 transition-opacity mx-auto ${isBlock ? "rounded-xl shadow-md" : ""}`}
                   style={{ zoom: isBlock ? "0.75" : "0.5" }}
+                  alt={props.alt || ""}
                 />
               </span>
             );
           },
+
+          // 代码块组件：高亮 + 复制按钮
           code(props: any) {
             const { children, className, node, ...rest } = props;
             const match = /language-(\w+)/.exec(className || "");
@@ -118,6 +126,7 @@ export function Markdown({ content }: { content: string }) {
                     {String(children).replace(/\n$/, "")}
                   </SyntaxHighlighter>
                   <button 
+                    type="button"
                     className="absolute top-2 right-2 px-2 py-1 bg-white/10 hover:bg-white/20 dark:bg-black/20 backdrop-blur-md border border-white/20 rounded-md text-xs transition-all opacity-0 group-hover:opacity-100"
                     onClick={() => {
                       navigator.clipboard.writeText(String(children));
@@ -132,8 +141,9 @@ export function Markdown({ content }: { content: string }) {
             }
             return <code className="bg-gray-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-[13px] font-mono mx-1" {...rest}>{children}</code>;
           },
-          // ... 其他 a, table, section 等逻辑保持不变
-          a: ({ node, children, href, ...props }: any) => {
+
+          // 链接组件：多媒体嵌入支持
+          a: ({ node: _node, children, href, ...props }: any) => {
             if (href?.match(/\.(mp4|webm|ogg)$/i)) {
               return (
                 <div className="my-4 text-center">
@@ -144,16 +154,35 @@ export function Markdown({ content }: { content: string }) {
                 </div>
               );
             }
+            if (href?.includes('[youtube.com/watch](https://youtube.com/watch)') || href?.includes('youtu.be/')) {
+              const videoId = href.includes('v=') ? href.split('v=')[1]?.split('&')[0] : href.split('/').pop();
+              return (
+                <div className="my-4 aspect-video shadow-xl rounded-xl overflow-hidden">
+                  <iframe className="w-full h-full border-none" src={`https://www.youtube.com/embed/${videoId}`} allowFullScreen title="YouTube video"></iframe>
+                </div>
+              );
+            }
             return <a href={href} {...props} className="text-theme hover:underline">{children}</a>;
           },
-          table: ({ node, ...props }) => <div className="overflow-x-auto"><table {...props} /></div>,
-          th: ({ node, ...props }) => <th className="bg-gray-100 dark:bg-zinc-800 border font-bold" {...props} />,
-          td: ({ node, ...props }) => <td className="border" {...props} />,
-          section({ children, ...props }) {
-            if (props.hasOwnProperty("data-footnotes")) {
-              props.className = `${props.className || ""} mt-8 pt-4 border-t dark:border-zinc-800`.trim();
-            }
-            return <section {...props}>{children}</section>;
+
+          // 基础布局组件
+          table: ({ node: _node, ...props }: any) => <div className="overflow-x-auto"><table {...props} /></div>,
+          th: ({ node: _node, ...props }: any) => <th className="bg-gray-100 dark:bg-zinc-800 border font-bold" {...props} />,
+          td: ({ node: _node, ...props }: any) => <td className="border" {...props} />,
+          ul: ({ children, className, ...props }: any) => (
+            <ul className={className?.includes("contains-task-list") ? "list-none pl-5" : "list-disc pl-5 mt-2"} {...props}>{children}</ul>
+          ),
+          ol: ({ children, ...props }: any) => <ol className="list-decimal pl-5 mt-2" {...props}>{children}</ol>,
+          li: ({ children, ...props }: any) => <li className="pl-2 py-0.5" {...props}>{children}</li>,
+          
+          // 脚注容器
+          section: ({ children, ...props }: any) => {
+            const isFootnote = props["data-footnotes"] !== undefined;
+            return (
+              <section {...props} className={`${props.className || ""} ${isFootnote ? "mt-8 pt-4 border-t dark:border-zinc-800" : ""}`}>
+                {children}
+              </section>
+            );
           },
         }}
       >
@@ -171,12 +200,11 @@ export function Markdown({ content }: { content: string }) {
         open={index >= 0} 
         close={() => setIndex(-1)} 
         plugins={[Zoom, Counter]} 
-        // --- 核心修复：添加缩放配置 ---
         zoom={{
-          maxZoomPixelRatio: 3,      // 最大放大倍数
-          zoomInMultiplier: 2,       // 按钮放大比例
-          wheelZoomDistanceFactor: 100, // 鼠标滑轮缩放灵敏度
-          scrollToZoom: true         // 开启鼠标滚轮缩放
+          maxZoomPixelRatio: 3,
+          zoomInMultiplier: 2,
+          wheelZoomDistanceFactor: 100,
+          scrollToZoom: true
         }}
       />
     </>
