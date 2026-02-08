@@ -1,5 +1,5 @@
 import "katex/dist/katex.min.css";
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { cloneElement, isValidElement, useEffect, useMemo, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { base16AteliersulphurpoolLight, vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -16,6 +16,26 @@ import Zoom from "yet-another-react-lightbox/plugins/zoom";
 import "yet-another-react-lightbox/styles.css";
 import { useColorMode } from "../utils/darkModeUtils";
 
+// --- 工具函数：判断图片布局 ---
+const countNewlinesBeforeNode = (text: string, offset: number) => {
+  let newlinesBefore = 0;
+  for (let i = offset - 1; i >= 0; i--) {
+    if (text[i] === "\n") newlinesBefore++;
+    else break;
+  }
+  return newlinesBefore;
+};
+
+const isMarkdownImageLinkAtEnd = (text: string) => {
+  const trimmed = text.trim();
+  const match = trimmed.match(/(.*)(!\[.*?\]\(.*?\))$/s);
+  if (match) {
+    const [, beforeImage] = match;
+    return beforeImage.trim().length === 0 || beforeImage.endsWith("\n");
+  }
+  return false;
+};
+
 export function Markdown({ content }: { content: string }) {
   const colorMode = useColorMode();
   const [index, setIndex] = React.useState(-1);
@@ -23,116 +43,165 @@ export function Markdown({ content }: { content: string }) {
 
   useEffect(() => { slides.current = undefined; }, [content]);
 
+  // --- 灯箱显示逻辑（已移除下载相关参数） ---
+  const showLightbox = (src: string | undefined) => {
+    if (!slides.current) {
+      const parent = document.getElementsByClassName("toc-content")[0];
+      if (!parent) return;
+      const images = parent.querySelectorAll("img");
+      slides.current = Array.from(images)
+        .map((image) => ({
+          src: image.getAttribute("src") || "",
+          alt: image.getAttribute("alt") || "",
+          imageFit: "contain" as const,
+        }))
+        .filter((slide) => slide.src !== "");
+    }
+    const idx = slides.current?.findIndex((slide) => slide.src === src) ?? -1;
+    setIndex(idx);
+  };
+
   const Content = useMemo(() => (
     <div className="markdown-render-container">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;700&family=Zhi+Mang+Xing&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;700&family=Zhi+Mang+Xing&family=Fira+Code:wght@400;500&display=swap');
         
         .toc-content { 
           word-break: break-word; 
           line-height: 1.7; 
-          /* 必须为 normal，因为换行已由 remark-breaks 插件生成的 <br/> 处理 */
           white-space: normal; 
         }
 
-        /* 修复表格：隐藏表格内部由插件生成的额外换行符，解决表格上方空行问题 */
-        .toc-content table br {
-          display: none;
-        }
-
-        .toc-content table { 
-          border-collapse: collapse; 
-          width: 100%; 
-          margin: 1.5rem 0; 
-          display: table !important; 
-        }
-        
-        .toc-content th, .toc-content td { 
-          border: 1px solid #ddd; 
-          padding: 10px; 
-          line-height: 1.5;
-        }
-
-        .toc-content th {
-          background-color: rgba(0,0,0,0.02);
-        }
-
-        /* 段落间距：确保即使不打双回车，段落之间也有呼吸感 */
-        .toc-content p { 
-          margin-bottom: 1.1rem; 
-        }
-
+        .toc-content table br { display: none; }
+        .toc-content table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; display: table !important; }
+        .toc-content th, .toc-content td { border: 1px solid #ddd; padding: 10px; line-height: 1.5; }
+        .toc-content th { background-color: rgba(0,0,0,0.02); }
+        .toc-content p { margin-bottom: 1.1rem; }
         .aspect-video { aspect-ratio: 16 / 9; width: 100%; background: #000; border-radius: 0.75rem; overflow: hidden; }
+        
+        .code-block-wrapper { font-family: 'Fira Code', monospace; font-variant-ligatures: normal; }
       `}</style>
 
       <ReactMarkdown
         className="toc-content dark:text-neutral-300"
-        // 核心插件：gfm 处理表格，remarkBreaks 处理回车即换行
         remarkPlugins={[gfm, remarkBreaks, remarkMermaid, remarkMath, remarkAlert]}
         rehypePlugins={[rehypeKatex, rehypeRaw]}
         components={{
-          table: ({ node, ...props }) => <div className="overflow-x-auto"><table {...props} /></div>,
-          th: ({ node, ...props }) => <th className="bg-gray-100 dark:bg-zinc-800 border font-bold" {...props} />,
-          td: ({ node, ...props }) => <td className="border" {...props} />,
-          
+          // --- 图片智能渲染 ---
+          img({ node, src, ...props }) {
+            const offset = node?.position?.start.offset || 0;
+            const previousContent = content.slice(0, offset);
+            const newlinesBefore = countNewlinesBeforeNode(previousContent, offset);
+            
+            const isBlock = newlinesBefore >= 1 || previousContent.trim().length === 0 || isMarkdownImageLinkAtEnd(previousContent);
+
+            return (
+              <span className={isBlock ? "block w-full text-center my-4" : "inline-block align-middle mx-1"}>
+                <img
+                  src={src}
+                  {...props}
+                  onClick={() => showLightbox(src)}
+                  className={`cursor-zoom-in hover:opacity-90 transition-opacity mx-auto ${isBlock ? "rounded-xl shadow-md" : ""}`}
+                  style={{ zoom: isBlock ? "0.75" : "0.5" }}
+                />
+              </span>
+            );
+          },
+
+          // --- 代码块渲染 ---
+          code(props: any) {
+            const { children, className, node, ...rest } = props;
+            const match = /language-(\w+)/.exec(className || "");
+            const [copied, setCopied] = React.useState(false);
+            
+            const curContent = content.slice(node?.position?.start.offset || 0);
+            const isCodeBlock = curContent.trimStart().startsWith("```") || !!match;
+
+            if (isCodeBlock) {
+              return (
+                <div className="relative group my-4 code-block-wrapper">
+                  <SyntaxHighlighter
+                    language={match ? match[1] : ""}
+                    style={colorMode === "dark" ? vscDarkPlus : base16AteliersulphurpoolLight}
+                    PreTag="div"
+                    className="rounded-lg shadow-sm"
+                    wrapLongLines={true}
+                    {...rest}
+                  >
+                    {String(children).replace(/\n$/, "")}
+                  </SyntaxHighlighter>
+                  <button 
+                    className="absolute top-2 right-2 px-2 py-1 bg-white/10 hover:bg-white/20 dark:bg-black/20 backdrop-blur-md border border-white/20 rounded-md text-xs transition-all opacity-0 group-hover:opacity-100"
+                    onClick={() => {
+                      navigator.clipboard.writeText(String(children));
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    }}
+                  >
+                    {copied ? "Copied!" : "Copy"}
+                  </button>
+                </div>
+              );
+            }
+            return (
+              <code className="bg-gray-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-[13px] font-mono mx-1" {...rest}>
+                {children}
+              </code>
+            );
+          },
+
+          // --- 其他元素渲染（a, table, ul, ol, li, section） ---
           a: ({ node, children, href, ...props }: any) => {
-            // 原生视频处理
             if (href?.match(/\.(mp4|webm|ogg)$/i)) {
               return (
                 <div className="my-4 text-center">
                   <video src={href} controls className="w-full rounded-xl shadow-lg" />
-                  <a href={href} target="_blank" rel="noreferrer" className="text-[10px] text-theme opacity-50 mt-1 italic hover:underline">
+                  <a href={href} target="_blank" rel="noreferrer" className="text-[10px] text-theme opacity-50 mt-1 italic hover:underline block">
                     {String(children) || "查看视频原文件"}
                   </a>
                 </div>
               );
             }
-
-            // YouTube 嵌入
-            if (href?.includes('youtube.com/watch') || href?.includes('youtu.be/')) {
+            if (href?.includes('[youtube.com/watch](https://youtube.com/watch)') || href?.includes('youtu.be/')) {
               const videoId = href.includes('v=') ? href.split('v=')[1]?.split('&')[0] : href.split('/').pop();
               return (
-                <div className="my-4">
-                  <div className="aspect-video shadow-xl">
-                    <iframe className="w-full h-full border-none" src={`https://www.youtube.com/embed/${videoId}`} allowFullScreen></iframe>
-                  </div>
-                  <a href={href} target="_blank" rel="noreferrer" className="text-[10px] block text-center mt-2 text-theme opacity-60 hover:underline">
-                    在 YouTube 中打开
-                  </a>
+                <div className="my-4 aspect-video shadow-xl rounded-xl overflow-hidden">
+                  <iframe className="w-full h-full border-none" src={`https://www.youtube.com/embed/${videoId}`} allowFullScreen></iframe>
                 </div>
               );
             }
-
-            // Bilibili 嵌入
-            if (href?.includes('bilibili.com/video/')) {
+            if (href?.includes('[bilibili.com/video/](https://bilibili.com/video/)')) {
               const bvid = href.split('video/')[1]?.split('/')[0]?.split('?')[0];
-              const biliSrc = `//player.bilibili.com/player.html?bvid=${bvid}&page=1&danmaku=0`;
               return (
-                <div className="my-4">
-                  <div className="aspect-video shadow-xl">
-                    <iframe className="w-full h-full border-none" src={biliSrc} allowFullScreen></iframe>
-                  </div>
-                  <a href={href} target="_blank" rel="noreferrer" className="text-[11px] block text-center mt-2 text-theme opacity-80 font-medium hover:underline">
-                    <i className="ri-bilibili-line mr-1"></i>
-                    前往 Bilibili 观看高清原片 ({String(children)})
-                  </a>
+                <div className="my-4 aspect-video shadow-xl rounded-xl overflow-hidden">
+                    <iframe className="w-full h-full border-none" src={`//player.bilibili.com/player.html?bvid=${bvid}&page=1&danmaku=0`} allowFullScreen></iframe>
                 </div>
               );
             }
-
             return <a href={href} {...props} className="text-theme hover:underline">{children}</a>;
           },
 
-          code({ children, className, node, ...rest }: any) {
-            const match = /language-(\w+)/.exec(className || "");
-            return match ? (
-              <SyntaxHighlighter language={match[1]} style={colorMode === "dark" ? vscDarkPlus : base16AteliersulphurpoolLight} PreTag="div" {...rest}>
-                {String(children).replace(/\n$/, "")}
-              </SyntaxHighlighter>
-            ) : (
-              <code className="bg-gray-100 dark:bg-zinc-800 px-1 rounded text-sm" {...rest}>{children}</code>
-            );
-          }
+          table: ({ node, ...props }) => <div className="overflow-x-auto"><table {...props} /></div>,
+          th: ({ node, ...props }) => <th className="bg-gray-100 dark:bg-zinc-800 border font-bold" {...props} />,
+          td: ({ node, ...props }) => <td className="border" {...props} />,
+          ul({ children, className, ...props }) {
+            return <ul className={className?.includes("contains-task-list") ? "list-none pl-5" : "list-disc pl-5 mt-2"} {...props}>{children}</ul>;
+          },
+          ol: ({ children, ...props }) => <ol className="list-decimal pl-5 mt-2" {...props}>{children}</ol>,
+          li: ({ children, ...props }) => <li className="pl-2 py-0.5" {...props}>{children}</li>,
+          
+          section({ children, ...props }) {
+            if (props.hasOwnProperty("data-footnotes")) {
+              props.className = `${props.className || ""} mt-8 pt-4 border-t dark:border-zinc-800`.trim();
+            }
+            const modifiedChildren = React.Children.map(children, (child) => {
+              if (isValidElement(child) && (child.props as any).node?.tagName === "ol") {
+                return cloneElement(child, { className: "list-decimal px-10 text-sm text-neutral-500" } as any);
+              }
+              return child;
+            });
+            return <section {...props}>{modifiedChildren}</section>;
+          },
         }}
       >
         {content}
@@ -143,7 +212,13 @@ export function Markdown({ content }: { content: string }) {
   return (
     <>
       {Content}
-      <Lightbox slides={slides.current} index={index} open={index >= 0} close={() => setIndex(-1)} plugins={[Zoom, Counter]} />
+      <Lightbox 
+        slides={slides.current} 
+        index={index} 
+        open={index >= 0} 
+        close={() => setIndex(-1)} 
+        plugins={[Zoom, Counter]} 
+      />
     </>
   );
 }
