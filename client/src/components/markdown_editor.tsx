@@ -26,7 +26,7 @@ export function MarkdownEditor({
   const { t } = useTranslation();
   const colorMode = useColorMode();
   const editorRef = useRef<editor.IStandaloneCodeEditor>();
-  const isComposingRef = useRef(false);
+  const isComposingRef = useRef(false); // 已接入逻辑，解决 TS6133 错误
   const [preview, setPreview] = useState<'edit' | 'preview' | 'comparison'>('edit');
   const [uploading, setUploading] = useState(false);
   const [currentFont, setCurrentFont] = useState(defaultFontFamily);
@@ -115,6 +115,29 @@ export function MarkdownEditor({
     );
   }
 
+  const handleEditorMount = (editor: editor.IStandaloneCodeEditor) => {
+    editorRef.current = editor;
+
+    // 解决 TS6133：在 Composition 事件中使用 isComposingRef
+    const inputElement = editor.getDomNode()?.querySelector('textarea');
+    if (inputElement) {
+      inputElement.addEventListener('compositionstart', () => {
+        isComposingRef.current = true;
+      });
+      inputElement.addEventListener('compositionend', () => {
+        isComposingRef.current = false;
+        setContent(editor.getValue());
+      });
+    }
+
+    editor.onDidChangeModelContent(() => {
+      // 只有不在输入法组合状态时才更新内容
+      if (!isComposingRef.current) {
+        setContent(editor.getValue());
+      }
+    });
+  };
+
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-row items-center space-x-2 border-b pb-2 dark:border-zinc-800">
@@ -132,18 +155,32 @@ export function MarkdownEditor({
           <div className="flex flex-wrap items-center gap-y-2 gap-x-1 mb-2 p-2 bg-gray-50 dark:bg-zinc-900/50 rounded-xl border dark:border-zinc-800">
             <UploadImageButton />
             <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
-            <select value={currentFont} onChange={(e) => setCurrentFont(e.target.value)} className="text-xs bg-transparent border border-gray-300 dark:border-zinc-700 rounded px-1 py-1 focus:outline-none">
-              {fontOptions.map(f => <option key={f.value} value={f.value}>{f.name}</option>)}
+            <select value={currentFont} onChange={(e) => setCurrentFont(e.target.value)} className="text-xs bg-transparent border border-gray-300 dark:border-zinc-700 rounded px-1 py-1 focus:outline-none dark:text-white">
+              {fontOptions.map(f => <option key={f.value} value={f.value} className="dark:bg-zinc-900">{f.name}</option>)}
             </select>
             <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
-            <button onClick={() => applyStyle('bold')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded"><i className="ri-bold" /></button>
-            <button onClick={() => applyStyle('italic')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded"><i className="ri-italic" /></button>
+            <button onClick={() => applyStyle('bold')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white"><i className="ri-bold" /></button>
+            <button onClick={() => applyStyle('italic')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white"><i className="ri-italic" /></button>
             <button onClick={() => applySpanStyle('background-color: #ffff00; color: #000')} className="p-1.5 bg-yellow-200 hover:bg-yellow-300 rounded text-black"><i className="ri-mark-pen-line" /></button>
             <button onClick={removeFormatting} className="p-1.5 hover:bg-red-100 text-red-500 rounded"><i className="ri-format-clear" /></button>
           </div>
           <div className="border rounded-xl overflow-hidden dark:border-zinc-800 bg-white dark:bg-[#1e1e1e]" onPaste={handlePaste}>
-            <Editor onMount={(e) => { editorRef.current = e; e.onDidChangeModelContent(() => setContent(e.getValue())); }} height={height} defaultLanguage="markdown" value={content} theme={colorMode === "dark" ? "vs-dark" : "light"}
-              options={{ wordWrap: "on", fontFamily: currentFont, fontLigatures: true, fontSize: 14, minimap: { enabled: false }, automaticLayout: true }} 
+            <Editor 
+              onMount={handleEditorMount} 
+              height={height} 
+              defaultLanguage="markdown" 
+              value={content} 
+              theme={colorMode === "dark" ? "vs-dark" : "light"}
+              options={{ 
+                wordWrap: "on", 
+                fontFamily: currentFont, 
+                fontLigatures: true, 
+                fontSize: 14, 
+                minimap: { enabled: false }, 
+                automaticLayout: true,
+                lineNumbers: "on",
+                padding: { top: 10 }
+              }} 
             />
           </div>
         </div>
