@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer/dist/APlayer.min.css">
     
     <style>
-      /* --- 1. 音乐插件：圆形按钮化并嵌入导航栏右上角 --- */
+      /* --- 1. 音乐插件：圆形按钮化并嵌入导航栏 --- */
       .aplayer.aplayer-fixed.aplayer-narrow .aplayer-body,
       .aplayer.aplayer-fixed.aplayer-narrow .aplayer-pic {
         border-radius: 50% !important; 
@@ -16,8 +16,9 @@
       }
 
       .aplayer.aplayer-fixed.aplayer-narrow .aplayer-body {
-        top: 12px !important;    /* 对齐导航栏中心线 */
-        right: 25px !important;
+        top: 12px !important;
+        /* 【位置修改】从 15px 改为 35px，向左移动约 20px */
+        right: 35px !important; 
         left: auto !important;
         bottom: auto !important;
         width: 40px !important;  
@@ -29,13 +30,11 @@
         transition: all 0.3s ease;
       }
 
-      /* 悬停放大效果 */
       .aplayer.aplayer-fixed.aplayer-narrow .aplayer-body:hover {
         transform: scale(1.1);
         background: rgba(255, 255, 255, 0.3) !important;
       }
 
-      /* 隐藏多余 UI */
       .aplayer.aplayer-fixed.aplayer-narrow .aplayer-info {
         display: none !important;
       }
@@ -61,11 +60,10 @@
         #live2d-widget, .aplayer-lrc {
           display: none !important;
         }
-
         .aplayer.aplayer-fixed.aplayer-narrow .aplayer-body {
           top: auto !important;
           bottom: 25px !important;
-          right: 20px !important;
+          right: 20px !important; /* 手机端保持靠右，方便点击 */
           width: 50px !important;
           height: 50px !important;
         }
@@ -77,14 +75,28 @@
 
     <script>
       window.live2d_settings = {
-        modelId: 2,                  /* 【已修改】看板娘模型 ID 改为 2 */
-        modelTexturesId: 0,          /* 默认服装 ID */
+        modelId: 2,
+        tips: true,
         widgetsConfig: { 
           position: 'right', 
-          width: '120px',            /* 稍微调大了一点，因为 Shizuku 模型比原先的略显修长 */
+          width: '120px', 
           height: '180px', 
           bottom: '0px' 
         },
+        welcomeTips: {
+          morning: '早上好！又是充满活力的一天~',
+          noon: '中午好，别忘了休息一下哦',
+          afternoon: '下午茶时间到了，要来杯咖啡吗？',
+          evening: '晚上好，今天过得开心吗？',
+          night: '夜深了，早点休息，晚安~',
+          other: '欢迎来到我的博客！'
+        },
+        clickTips: [
+          '哎呀，别乱摸啦~',
+          '你在看哪里呀？',
+          '要听听音乐放松一下吗？',
+          '有什么我可以帮你的吗？'
+        ],
         mobile: { show: false }
       };
     </script>
@@ -102,7 +114,6 @@
     </meting-js>
 
     <script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script>
-    
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
