@@ -158,33 +158,49 @@ export function MarkdownEditor({
     );
   }
 
-  // --- 增强：双击选中逻辑 ---
+  // --- 增强：模拟 Word 的中文双击选中逻辑 ---
   const handleEditorMount = (editor: editor.IStandaloneCodeEditor) => {
     editorRef.current = editor;
     
-    // 监听鼠标双击事件
     editor.onMouseDown((e) => {
-      // 只有双击（detail 为 2）才触发自定义行选中
-      if (e.event.detail === 2) {
+      if (e.event.detail === 2) { // 双击事件
         const position = e.target.position;
         if (!position) return;
+        const model = editor.getModel();
+        if (!model) return;
 
-        // 如果双击的是行首（Monaco 的 column 为 1）
+        // 1. 行首双击选中整行
         if (position.column === 1) {
-          const model = editor.getModel();
-          if (model) {
-            const lineContent = model.getLineContent(position.lineNumber);
-            // 选中整行（从 1 列到行末）
-            editor.setSelection(new Selection(
-              position.lineNumber, 
-              1, 
-              position.lineNumber, 
-              lineContent.length + 1
-            ));
-            // 阻止默认双击事件，防止干扰
-            e.event.preventDefault();
-            e.event.stopPropagation();
-          }
+          const lineContent = model.getLineContent(position.lineNumber);
+          editor.setSelection(new Selection(position.lineNumber, 1, position.lineNumber, lineContent.length + 1));
+          e.event.preventDefault();
+          return;
+        }
+
+        // 2. 中文词组模拟选中逻辑
+        const lineContent = model.getLineContent(position.lineNumber);
+        const offset = position.column - 1; // 当前点击在字符串中的索引
+
+        // 定义分词边界：标点、空格、Markdown 符号
+        const boundaryRegex = /[\s，。！？、；：""''（）【】《》\[\](){}<>|*`~_-]/;
+
+        let start = offset;
+        let end = offset;
+
+        // 向左寻找边界
+        while (start > 0 && !boundaryRegex.test(lineContent[start - 1])) {
+          start--;
+        }
+        // 向右寻找边界
+        while (end < lineContent.length && !boundaryRegex.test(lineContent[end])) {
+          end++;
+        }
+
+        // 如果找到了有效的词范围（长度大于0且不是纯边界点击）
+        if (start < end) {
+          editor.setSelection(new Selection(position.lineNumber, start + 1, position.lineNumber, end + 1));
+          e.event.preventDefault(); // 阻止 Monaco 默认的分词选中
+          e.event.stopPropagation();
         }
       }
     });
@@ -247,8 +263,8 @@ export function MarkdownEditor({
                 automaticLayout: true, 
                 lineNumbers: "on", 
                 padding: { top: 10 },
-                // 确保点击边距也能触发选中
-                selectOnLineNumbers: true
+                selectOnLineNumbers: true,
+                unicodeHighlight: { ambiguousCharacters: false, invisibleCharacters: false }
               }} 
             />
           </div>
