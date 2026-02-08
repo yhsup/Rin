@@ -12,7 +12,7 @@ import { Checkbox, Input } from "../components/input";
 import { client } from "../main";
 import { headersWithAuth } from "../utils/auth";
 import { Cache } from '../utils/cache';
-import { siteName } from "../utils/constants";
+import { constants } from "../utils/constants"; // 修改了这一行，删除了 siteName
 import mermaid from 'mermaid';
 import { MarkdownEditor } from '../components/markdown_editor';
 
