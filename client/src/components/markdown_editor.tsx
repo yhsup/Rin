@@ -3,7 +3,6 @@ import { editor, Selection, KeyMod, KeyCode } from 'monaco-editor';
 import { useRef, useState, useCallback } from "react";
 import Loading from 'react-loading';
 import { useColorMode } from "../utils/darkModeUtils";
-import { Markdown } from "./markdown";
 import { client } from "../main";
 import { headersWithAuth } from "../utils/auth";
 
@@ -19,13 +18,11 @@ interface MarkdownEditorProps {
 export function MarkdownEditor({
   content,
   setContent,
-  placeholder = "",
   height = "500px"
 }: MarkdownEditorProps) {
   const colorMode = useColorMode();
   const editorRef = useRef<editor.IStandaloneCodeEditor>();
   const isComposingRef = useRef(false);
-  const [preview] = useState<'edit' | 'preview' | 'comparison'>('edit');
   const [uploading, setUploading] = useState(false);
   
   const [bubblePos, setBubblePos] = useState<{ x: number, y: number } | null>(null);
@@ -39,38 +36,26 @@ export function MarkdownEditor({
     { label: "根号 (sqrt)", value: "$\\sqrt{内容}$", placeholder: "内容" },
   ];
 
-  // --- 修复版：状态感应逻辑 ---
   const checkStyleStatus = useCallback((editor: editor.IStandaloneCodeEditor) => {
     const model = editor.getModel();
     const selection = editor.getSelection();
     if (!model || !selection) return;
 
-    // 获取当前行或选区附近的文本
     const line = model.getLineContent(selection.startLineNumber);
     const startCol = selection.startColumn;
-    const endCol = selection.endColumn;
 
-    // 辅助函数：检测文本是否被指定符号包裹（考虑选区内外）
     const isWrapped = (tag: string) => {
-      // 检查光标左侧是否有 tag，右侧是否有 tag
       const leftText = line.substring(Math.max(0, startCol - 1 - tag.length), startCol - 1);
-      const rightText = line.substring(endCol - 1, endCol - 1 + tag.length);
-      
-      // 或者检查选区内的首尾
       const selectedText = model.getValueInRange(selection);
       const inSelection = selectedText.startsWith(tag) && selectedText.endsWith(tag);
-      
       return leftText === tag || inSelection;
     };
 
-    // 针对星号的特殊逻辑：计算星号密度
     const getStarCount = () => {
-      let count = 0;
       for (let i = 3; i >= 1; i--) {
-        const stars = "*".repeat(i);
-        if (isWrapped(stars)) { count = i; break; }
+        if (isWrapped("*".repeat(i))) return i;
       }
-      return count;
+      return 0;
     };
 
     const sLevel = getStarCount();
@@ -84,7 +69,6 @@ export function MarkdownEditor({
     });
   }, []);
 
-  // --- 修复版：样式叠加逻辑 ---
   const applyStyle = useCallback((type: string) => {
     const editor = editorRef.current;
     if (!editor) return;
@@ -104,29 +88,22 @@ export function MarkdownEditor({
 
     const s = styleMap[type];
     const endTag = s.end || s.tag;
-    
-    // 如果已经有该样式，则去掉它；如果没有，则包裹它
     const isRemoving = s.reg.test(selectedText);
-    const newText = isRemoving 
-      ? selectedText.replace(s.reg, '$1') 
-      : `${s.tag}${selectedText}${endTag}`;
+    const newText = isRemoving ? selectedText.replace(s.reg, '$1') : `${s.tag}${selectedText}${endTag}`;
     
     editor.executeEdits("style", [{ range: selection, text: newText, forceMoveMarkers: true }]);
     
-    // 重新选中文字，方便连续操作
     if (!isRemoving) {
-        const newSelection = new Selection(
+        editor.setSelection(new Selection(
             selection.startLineNumber, selection.startColumn,
             selection.endLineNumber, selection.endColumn + s.tag.length + endTag.length
-        );
-        editor.setSelection(newSelection);
+        ));
     }
 
     setTimeout(() => checkStyleStatus(editor), 50);
     editor.focus();
   }, [checkStyleStatus]);
 
-  // --- 其他功能保留 ---
   const insertMathTemplate = useCallback((template: string, placeholder?: string) => {
     const editor = editorRef.current;
     if (!editor) return;
@@ -177,9 +154,7 @@ export function MarkdownEditor({
 
   const handleEditorMount = (editor: editor.IStandaloneCodeEditor) => {
     editorRef.current = editor;
-    editor.addCommand(KeyMod.CtrlCmd | KeyCode.KeyB, () => applyStyle('bold'));
-    editor.addCommand(KeyMod.CtrlCmd | KeyCode.KeyU, () => applyStyle('underline'));
-    
+
     editor.onKeyDown((e) => {
       const sel = editor.getSelection();
       if (sel && !sel.isEmpty() && (e.browserEvent.key === '$' || e.browserEvent.key === '<')) {
@@ -251,13 +226,11 @@ export function MarkdownEditor({
         </div>
       </div>
 
-      <div className={`grid grid-cols-1 ${preview === 'comparison' ? "lg:grid-cols-2" : ""} gap-4`}>
-        <div className="border rounded-xl overflow-hidden shadow-inner bg-white dark:bg-[#1e1e1e]" 
-             onPaste={(e) => e.clipboardData.files[0] && handleFileUpload(e.clipboardData.files[0])}>
-          <Editor onMount={handleEditorMount} height={height} defaultLanguage="markdown" value={content} theme={colorMode === "dark" ? "vs-dark" : "light"}
-            options={{ wordWrap: "on", fontSize: 15, minimap: { enabled: false }, smoothScrolling: true, cursorSmoothCaretAnimation: "on" }} 
-          />
-        </div>
+      <div className="border rounded-xl overflow-hidden shadow-inner bg-white dark:bg-[#1e1e1e]" 
+           onPaste={(e) => e.clipboardData.files[0] && handleFileUpload(e.clipboardData.files[0])}>
+        <Editor onMount={handleEditorMount} height={height} defaultLanguage="markdown" value={content} theme={colorMode === "dark" ? "vs-dark" : "light"}
+          options={{ wordWrap: "on", fontSize: 15, minimap: { enabled: false }, smoothScrolling: true, cursorSmoothCaretAnimation: "on" }} 
+        />
       </div>
     </div>
   );
