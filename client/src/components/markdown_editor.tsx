@@ -30,47 +30,73 @@ export function MarkdownEditor({
   const [preview, setPreview] = useState<'edit' | 'preview' | 'comparison'>('edit');
   const [uploading, setUploading] = useState(false);
 
+  // --- 数学符号模板定义 ---
   const mathSymbols = [
-    { label: "行内公式", value: "$公式$", placeholder: "公式" },
-    { label: "块级公式", value: "\n$$\n公式内容\n$$\n", placeholder: "公式内容" },
-    { label: "分式 (frac)", value: "\\frac{分子}{分母}", placeholder: "分子" },
-    { label: "定积分 (int)", value: "\\int_{下限}^{上限} f(x) dx", placeholder: "下限" },
-    { label: "根号 (sqrt)", value: "\\sqrt{内容}", placeholder: "内容" },
-    { label: "求和 (sum)", value: "\\sum_{i=1}^{n}", placeholder: "n" },
-    { label: "乘法 (times)", value: "\\times", placeholder: "" },
-    { label: "希腊字母 (π)", value: "\\pi", placeholder: "" },
+    { label: "行内公式容器", value: "$公式$", placeholder: "公式" },
+    { label: "块级公式容器", value: "\n$$\n公式内容\n$$\n", placeholder: "公式内容" },
+    { label: "分式 (frac)", value: "$\\frac{分子}{分母}$", placeholder: "分子" },
+    { label: "定积分 (int)", value: "$\\int_{下限}^{上限} f(x) dx$", placeholder: "下限" },
+    { label: "根号 (sqrt)", value: "$\\sqrt{内容}$", placeholder: "内容" },
+    { label: "求和 (sum)", value: "$\\sum_{i=1}^{n}$", placeholder: "n" },
+    { label: "乘法 (times)", value: "$\\times$", placeholder: "" },
+    { label: "希腊字母 (π)", value: "$\\pi$", placeholder: "" },
   ];
 
-  const insertMathTemplate = (text: string, placeholder?: string) => {
+  // --- 核心逻辑：插入模板并自动选中占位符 ---
+  const insertMathTemplate = (template: string, placeholder?: string) => {
     const editor = editorRef.current;
     if (!editor) return;
     const selection = editor.getSelection();
     const model = editor.getModel();
     if (!selection || !model) return;
 
+    const selectedText = model.getValueInRange(selection);
+    let textToInsert = template;
+
+    // 如果用户已选中文字，则用选中的文字替换模板中的占位符
+    if (selectedText && placeholder) {
+      textToInsert = template.replace(placeholder, selectedText);
+    }
+
     editor.executeEdits("insert-math", [{
       range: selection,
-      text: text,
+      text: textToInsert,
       forceMoveMarkers: true
     }]);
 
-    if (placeholder && placeholder !== "") {
+    // 如果是插入新模板（未选文字），自动高亮占位符
+    if (!selectedText && placeholder) {
       const position = editor.getPosition();
       if (position) {
-        const lines = text.split('\n');
-        const lastLineContent = lines[lines.length - 1];
-        const placeholderIdx = lastLineContent.indexOf(placeholder);
+        const lines = textToInsert.split('\n');
         
-        if (placeholderIdx !== -1) {
+        if (lines.length === 1) {
+          // 单行处理
+          const lastLineContent = lines[0];
+          const placeholderIdx = lastLineContent.indexOf(placeholder);
           const startCol = position.column - (lastLineContent.length - placeholderIdx);
-          const endCol = startCol + placeholder.length;
-          editor.setSelection(new Selection(position.lineNumber, startCol, position.lineNumber, endCol));
+          editor.setSelection(new Selection(position.lineNumber, startCol, position.lineNumber, startCol + placeholder.length));
+        } else {
+          // 多行（块级公式）处理
+          const pIdx = textToInsert.indexOf(placeholder);
+          const beforePlaceholder = textToInsert.substring(0, pIdx);
+          const linesBefore = beforePlaceholder.split('\n');
+          const targetLineNumber = (position.lineNumber - lines.length + 1) + linesBefore.length - 1;
+          const targetColumn = linesBefore[linesBefore.length - 1].length + 1;
+          
+          editor.setSelection(new Selection(
+            targetLineNumber, 
+            targetColumn, 
+            targetLineNumber, 
+            targetColumn + placeholder.length
+          ));
         }
       }
     }
     editor.focus();
   };
 
+  // --- UI 组件：公式下拉按钮 ---
   function MathFormulaButton() {
     const [isOpen, setIsOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -87,28 +113,21 @@ export function MarkdownEditor({
 
     return (
       <div className="relative" ref={menuRef}>
-        <div className="flex items-center bg-gray-100 dark:bg-zinc-800 rounded">
-          <button 
-            onClick={() => insertMathTemplate("\n$$\n公式内容\n$$\n", "公式内容")} 
-            className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded-l dark:text-white border-r dark:border-zinc-700" 
-            title="插入公式块"
-          >
-            <i className="ri-functions" />
-          </button>
-          <button 
-            onClick={() => setIsOpen(!isOpen)} 
-            className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded-r dark:text-white"
-          >
-            <i className="ri-arrow-down-s-line text-[10px]" />
-          </button>
-        </div>
+        <button 
+          onClick={() => setIsOpen(!isOpen)} 
+          className={`p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white flex items-center gap-1 ${isOpen ? 'bg-gray-200 dark:bg-zinc-700' : ''}`}
+          title="插入数学公式"
+        >
+          <i className="ri-functions" />
+          <i className="ri-arrow-down-s-line text-[10px]" />
+        </button>
 
         {isOpen && (
-          <div className="absolute left-0 top-full mt-1 z-50 w-48 bg-white dark:bg-zinc-900 border dark:border-zinc-700 rounded-lg shadow-xl py-1 grid grid-cols-1">
+          <div className="absolute left-0 top-full mt-1 z-50 w-48 bg-white dark:bg-zinc-900 border dark:border-zinc-700 rounded-lg shadow-xl py-1">
             {mathSymbols.map((sym) => (
               <button
                 key={sym.label}
-                className="px-3 py-1.5 text-left text-xs hover:bg-theme hover:text-white dark:text-gray-300 transition-colors"
+                className="w-full px-3 py-2 text-left text-xs hover:bg-theme hover:text-white dark:text-gray-300 transition-colors flex justify-between items-center"
                 onClick={() => {
                   insertMathTemplate(sym.value, sym.placeholder);
                   setIsOpen(false);
@@ -123,13 +142,14 @@ export function MarkdownEditor({
     );
   }
 
-  function uploadImage(file: File, onSuccess: (url: string) => void, showAlert: (msg: string) => void) {
+  // --- 基础功能：图片、表格、样式 ---
+  const uploadImage = (file: File, onSuccess: (url: string) => void) => {
     client.storage.index.post({ key: file.name, file: file }, { headers: headersWithAuth() })
       .then(({ data, error }) => {
-        if (error) showAlert(t("upload.failed"));
+        if (error) console.error(t("upload.failed"));
         if (data) onSuccess(data);
-      }).catch(() => showAlert(t("upload.failed")));
-  }
+      }).catch(() => console.error(t("upload.failed")));
+  };
 
   const handlePaste = async (event: React.ClipboardEvent<HTMLDivElement>) => {
     const clipboardData = event.clipboardData;
@@ -137,12 +157,12 @@ export function MarkdownEditor({
       const editor = editorRef.current;
       if (!editor) return;
       setUploading(true);
-      const myfile = clipboardData.files[0] as File;
-      uploadImage(myfile, (url) => {
+      const file = clipboardData.files[0] as File;
+      uploadImage(file, (url) => {
         const selection = editor.getSelection();
-        if (selection) editor.executeEdits(undefined, [{ range: selection, text: `![${myfile.name}](${url})\n` }]);
+        if (selection) editor.executeEdits("paste-img", [{ range: selection, text: `![${file.name}](${url})\n` }]);
         setUploading(false);
-      }, () => setUploading(false));
+      });
     }
   };
 
@@ -163,7 +183,7 @@ export function MarkdownEditor({
     };
     const style = styleMap[type];
     if (!style) return;
-    let newText = style.reg.test(selectedText) ? selectedText.replace(style.reg, '$1') : `${style.before}${selectedText}${style.after}`;
+    const newText = style.reg.test(selectedText) ? selectedText.replace(style.reg, '$1') : `${style.before}${selectedText}${style.after}`;
     editor.executeEdits("style", [{ range: selection, text: newText, forceMoveMarkers: true }]);
     editor.focus();
   };
@@ -177,7 +197,7 @@ export function MarkdownEditor({
     if (isNaN(rows) || isNaN(cols)) return;
     let tableMd = "| " + Array(cols).fill("Header").join(" | ") + " |\n";
     tableMd += "| " + Array(cols).fill("---").join(" | ") + " |\n";
-    for (let i = 0; i < rows; i++) { tableMd += "| " + Array(cols).fill("Content").join(" | ") + " |\n"; }
+    for (let i = 0; i < rows; i++) tableMd += "| " + Array(cols).fill("Content").join(" | ") + " |\n";
     const selection = editor.getSelection();
     if (selection) {
       editor.executeEdits("table", [{ range: selection, text: tableMd.trim(), forceMoveMarkers: true }]);
@@ -191,7 +211,7 @@ export function MarkdownEditor({
     const selection = editor.getSelection();
     const model = editor.getModel();
     if (!selection || !model || !model.getValueInRange(selection)) return;
-    editor.executeEdits("span-style", [{ range: selection, text: `<span style="${styleStr}">${model.getValueInRange(selection)}</span>`, forceMoveMarkers: true }]);
+    editor.executeEdits("span", [{ range: selection, text: `<span style="${styleStr}">${model.getValueInRange(selection)}</span>`, forceMoveMarkers: true }]);
     editor.focus();
   };
 
@@ -202,7 +222,7 @@ export function MarkdownEditor({
     const model = editor.getModel();
     if (!selection || !model) return;
     const cleanText = model.getValueInRange(selection).replace(/<[^>]*>/g, '').replace(/(\*\*|\*|~~)/g, '');
-    editor.executeEdits("remove-format", [{ range: selection, text: cleanText, forceMoveMarkers: true }]);
+    editor.executeEdits("clean", [{ range: selection, text: cleanText, forceMoveMarkers: true }]);
     editor.focus();
   };
 
@@ -217,7 +237,7 @@ export function MarkdownEditor({
       });
     }
     editor.onDidChangeModelContent(() => {
-      if (!isComposingRef.current) { setContent(editor.getValue()); }
+      if (!isComposingRef.current) setContent(editor.getValue());
     });
   };
 
@@ -236,7 +256,6 @@ export function MarkdownEditor({
       <div className={`grid grid-cols-1 ${preview === 'comparison' ? "lg:grid-cols-2" : ""} gap-4`}>
         <div className={preview === 'preview' ? "hidden" : "flex flex-col"}>
           <div className="flex flex-wrap items-center gap-y-2 gap-x-1 mb-2 p-2 bg-gray-50 dark:bg-zinc-900/50 rounded-xl border dark:border-zinc-800">
-            {/* 图片上传 */}
             <label className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded text-theme cursor-pointer" title="上传图片">
               <input type="file" accept="image/*" className="hidden" onChange={(e) => {
                 const file = e.target.files?.[0];
@@ -244,29 +263,28 @@ export function MarkdownEditor({
                   setUploading(true);
                   uploadImage(file, (url) => {
                     const sel = editorRef.current?.getSelection() || new Selection(1,1,1,1);
-                    editorRef.current?.executeEdits("upload-img", [{ range: sel, text: `![${file.name}](${url})\n` }]);
+                    editorRef.current?.executeEdits("img", [{ range: sel, text: `![${file.name}](${url})\n` }]);
                     setUploading(false);
-                  }, () => setUploading(false));
+                  });
                 }
               }} />
               <i className="ri-image-add-line" />
             </label>
-
             <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
-            <button onClick={() => applyStyle('bold')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white" title="加粗"><i className="ri-bold" /></button>
-            <button onClick={() => applyStyle('italic')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white" title="斜体"><i className="ri-italic" /></button>
-            <button onClick={() => applyStyle('underline')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white" title="下划线"><i className="ri-underline" /></button>
-            <button onClick={() => applyStyle('strikethrough')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white" title="删除线"><i className="ri-strikethrough" /></button>
+            <button onClick={() => applyStyle('bold')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white"><i className="ri-bold" /></button>
+            <button onClick={() => applyStyle('italic')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white"><i className="ri-italic" /></button>
+            <button onClick={() => applyStyle('underline')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white"><i className="ri-underline" /></button>
+            <button onClick={() => applyStyle('strikethrough')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white"><i className="ri-strikethrough" /></button>
             <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
-            <button onClick={insertTable} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white" title="表格"><i className="ri-table-line" /></button>
+            <button onClick={insertTable} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white"><i className="ri-table-line" /></button>
             
             <MathFormulaButton />
 
             <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
-            <button onClick={() => applyStyle('sup')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white" title="上标"><i className="ri-superscript" /></button>
-            <button onClick={() => applyStyle('sub')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white" title="下标"><i className="ri-subscript" /></button>
-            <button onClick={() => applySpanStyle('background-color: #ffff00; color: #000')} className="p-1.5 bg-yellow-200 hover:bg-yellow-300 rounded text-black" title="高亮"><i className="ri-mark-pen-line" /></button>
-            <button onClick={removeFormatting} className="p-1.5 hover:bg-red-100 text-red-500 rounded" title="清除格式"><i className="ri-format-clear" /></button>
+            <button onClick={() => applyStyle('sup')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white"><i className="ri-superscript" /></button>
+            <button onClick={() => applyStyle('sub')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white"><i className="ri-subscript" /></button>
+            <button onClick={() => applySpanStyle('background-color: #ffff00; color: #000')} className="p-1.5 bg-yellow-200 hover:bg-yellow-300 rounded text-black"><i className="ri-mark-pen-line" /></button>
+            <button onClick={removeFormatting} className="p-1.5 hover:bg-red-100 text-red-500 rounded"><i className="ri-format-clear" /></button>
           </div>
 
           <div className="border rounded-xl overflow-hidden bg-white dark:bg-[#1e1e1e]" onPaste={handlePaste}>
