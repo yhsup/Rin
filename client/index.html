@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer/dist/APlayer.min.css">
     
     <style>
-      /* --- 1. 音乐插件：圆形按钮化并嵌入导航栏 --- */
+      /* --- 1. 音乐插件：向左移动 100px 左右 --- */
       .aplayer.aplayer-fixed.aplayer-narrow .aplayer-body,
       .aplayer.aplayer-fixed.aplayer-narrow .aplayer-pic {
         border-radius: 50% !important; 
@@ -17,8 +17,8 @@
 
       .aplayer.aplayer-fixed.aplayer-narrow .aplayer-body {
         top: 12px !important;
-        /* 【位置修改】从 15px 改为 35px，向左移动约 20px */
-        right: 35px !important; 
+        /* 【位置修改】设为 115px，确保在导航栏靠左的位置 */
+        right: 115px !important; 
         left: auto !important;
         bottom: auto !important;
         width: 40px !important;  
@@ -30,26 +30,24 @@
         transition: all 0.3s ease;
       }
 
-      .aplayer.aplayer-fixed.aplayer-narrow .aplayer-body:hover {
-        transform: scale(1.1);
-        background: rgba(255, 255, 255, 0.3) !important;
-      }
-
-      .aplayer.aplayer-fixed.aplayer-narrow .aplayer-info {
-        display: none !important;
-      }
-
       /* 歌词固定在右下角 */
       .aplayer.aplayer-fixed .aplayer-lrc {
         bottom: 25px !important;
         right: 25px !important;
-        left: auto !important;
-        width: auto !important;
-        pointer-events: none;
         z-index: 10001 !important;
       }
 
-      /* --- 2. 看板娘层级 --- */
+      /* --- 2. 看板娘按钮精简 --- */
+      /* 隐藏第1个(聊天)、第2个(飞机/换装)、第5个(关于)按钮 */
+      #waifu-tool .fa-comment, 
+      #waifu-tool .fa-paper-plane,
+      #waifu-tool .fa-info-circle,
+      #waifu-tool span:nth-child(1), 
+      #waifu-tool span:nth-child(2),
+      #waifu-tool span:nth-child(5) {
+        display: none !important;
+      }
+
       #live2d-widget {
         pointer-events: auto !important;
         z-index: 9999 !important;
@@ -57,15 +55,11 @@
 
       /* --- 3. 移动端适配 --- */
       @media (max-width: 768px) {
-        #live2d-widget, .aplayer-lrc {
-          display: none !important;
-        }
+        #live2d-widget, .aplayer-lrc { display: none !important; }
         .aplayer.aplayer-fixed.aplayer-narrow .aplayer-body {
           top: auto !important;
           bottom: 25px !important;
-          right: 20px !important; /* 手机端保持靠右，方便点击 */
-          width: 50px !important;
-          height: 50px !important;
+          right: 20px !important;
         }
       }
     </style>
@@ -79,39 +73,33 @@
         tips: true,
         widgetsConfig: { 
           position: 'right', 
-          width: '120px', 
-          height: '180px', 
+          /* 【大小修改】整体缩小看板娘尺寸 */
+          width: '90px', 
+          height: '140px', 
           bottom: '0px' 
         },
-        welcomeTips: {
-          morning: '早上好！又是充满活力的一天~',
-          noon: '中午好，别忘了休息一下哦',
-          afternoon: '下午茶时间到了，要来杯咖啡吗？',
-          evening: '晚上好，今天过得开心吗？',
-          night: '夜深了，早点休息，晚安~',
-          other: '欢迎来到我的博客！'
-        },
-        clickTips: [
-          '哎呀，别乱摸啦~',
-          '你在看哪里呀？',
-          '要听听音乐放松一下吗？',
-          '有什么我可以帮你的吗？'
-        ],
-        mobile: { show: false }
-      };
+        welcomeTips: {          
+        morning: '早上好！又是充满活力的一天~',          
+        noon: '中午好，别忘了休息一下哦',          
+        afternoon: '下午茶时间到了，要来杯咖啡吗？',          
+        evening: '晚上好，今天过得开心吗？',          
+        night: '夜深了，早点休息，晚安~',          
+        other: '欢迎来到我的博客！'        
+        },        
+        clickTips: [          
+        '哎呀，别乱摸啦~',          
+        '你在看哪里呀？',          
+        '要听听音乐放松一下吗？',          
+        '有什么我可以帮你的吗？'        
+        ],        
+        mobile: { show: false }      
+        };
     </script>
 
     <script src="https://cdn.jsdelivr.net/npm/aplayer/dist/APlayer.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/meting@2/dist/Meting.min.js"></script>
     
-    <meting-js
-      server="netease"
-      type="playlist"
-      id="2195513251" 
-      fixed="true"
-      mini="true"
-      theme="#6366f1">
-    </meting-js>
+    <meting-js server="netease" type="playlist" id="2195513251" fixed="true" mini="true" theme="#6366f1"></meting-js>
 
     <script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script>
     <script type="module" src="/src/main.tsx"></script>
