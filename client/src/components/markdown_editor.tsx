@@ -1,7 +1,6 @@
 import Editor, { loader } from '@monaco-editor/react';
 import { editor, Selection, KeyMod, KeyCode } from 'monaco-editor';
-import React, { useRef, useState, useEffect, useCallback } from "react";
-import { useTranslation } from "react-i18next";
+import { useRef, useState, useCallback } from "react";
 import Loading from 'react-loading';
 import { useColorMode } from "../utils/darkModeUtils";
 import { Markdown } from "./markdown";
@@ -24,14 +23,12 @@ export function MarkdownEditor({
   placeholder = "",
   height = "500px"
 }: MarkdownEditorProps) {
-  const { t } = useTranslation();
   const colorMode = useColorMode();
   const editorRef = useRef<editor.IStandaloneCodeEditor>();
   const isComposingRef = useRef(false);
-  const [preview, setPreview] = useState<'edit' | 'preview' | 'comparison'>('edit');
+  const [preview] = useState<'edit' | 'preview' | 'comparison'>('edit');
   const [uploading, setUploading] = useState(false);
   
-  // 状态感知与 UI 反馈
   const [bubblePos, setBubblePos] = useState<{ x: number, y: number } | null>(null);
   const [activeStyles, setActiveStyles] = useState<Record<string, boolean>>({});
 
@@ -43,7 +40,6 @@ export function MarkdownEditor({
     { label: "根号 (sqrt)", value: "$\\sqrt{内容}$", placeholder: "内容" },
   ];
 
-  // --- 核心逻辑：公式插入与去重 ---
   const insertMathTemplate = useCallback((template: string, placeholder?: string) => {
     const editor = editorRef.current;
     if (!editor) return;
@@ -63,7 +59,6 @@ export function MarkdownEditor({
 
     editor.executeEdits("insert", [{ range: selection, text: textToInsert, forceMoveMarkers: true }]);
     
-    // 自动选中逻辑
     if ((!selectedText || isReplacingPlaceholder) && placeholder) {
       setTimeout(() => {
         const currentPos = editor.getPosition();
@@ -76,7 +71,6 @@ export function MarkdownEditor({
     editor.focus();
   }, []);
 
-  // --- 核心逻辑：样式应用与 Toggle ---
   const applyStyle = useCallback((type: string) => {
     const editor = editorRef.current;
     if (!editor) return;
@@ -100,7 +94,6 @@ export function MarkdownEditor({
     editor.focus();
   }, []);
 
-  // --- 检测光标处样式状态 (感应高亮) ---
   const checkStyleStatus = (editor: editor.IStandaloneCodeEditor) => {
     const model = editor.getModel();
     const selection = editor.getSelection();
@@ -125,7 +118,6 @@ export function MarkdownEditor({
     });
   };
 
-  // --- 拖拽与粘贴反馈 ---
   const uploadImage = (file: File, onSuccess: (url: string) => void) => {
     client.storage.index.post({ key: file.name, file: file }, { headers: headersWithAuth() })
       .then(({ data }) => data && onSuccess(data));
@@ -154,12 +146,10 @@ export function MarkdownEditor({
   const handleEditorMount = (editor: editor.IStandaloneCodeEditor) => {
     editorRef.current = editor;
 
-    // 快捷键映射
     editor.addCommand(KeyMod.CtrlCmd | KeyCode.KeyB, () => applyStyle('bold'));
     editor.addCommand(KeyMod.CtrlCmd | KeyCode.KeyU, () => applyStyle('underline'));
     editor.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE, () => insertMathTemplate("$公式$", "公式"));
 
-    // 自动包裹逻辑
     editor.onKeyDown((e) => {
       const sel = editor.getSelection();
       if (!sel || sel.isEmpty()) return;
@@ -167,12 +157,12 @@ export function MarkdownEditor({
         e.preventDefault();
         const start = e.browserEvent.key;
         const end = start === '<' ? '>' : '$';
-        const text = editor.getModel()?.getValueInRange(sel);
+        const model = editor.getModel();
+        const text = model?.getValueInRange(sel);
         editor.executeEdits("wrap", [{ range: sel, text: `${start}${text}${end}` }]);
       }
     });
 
-    // 状态感应与悬浮条
     editor.onDidChangeCursorSelection((e) => {
       checkStyleStatus(editor);
       if (!e.selection.isEmpty()) {
@@ -186,12 +176,13 @@ export function MarkdownEditor({
       }
     });
 
-    editor.onDidChangeModelContent(() => { if (!isComposingRef.current) setContent(editor.getValue()); });
+    editor.onDidChangeModelContent(() => { 
+      if (!isComposingRef.current) setContent(editor.getValue()); 
+    });
   };
 
   return (
     <div className="flex flex-col gap-2 relative">
-      {/* 5. 悬浮工具栏 */}
       {bubblePos && (
         <div className="fixed z-[100] flex gap-1 bg-white dark:bg-zinc-800 shadow-xl border dark:border-zinc-700 p-1 rounded-lg animate-in fade-in zoom-in-95"
              style={{ left: bubblePos.x, top: bubblePos.y }}>
@@ -200,7 +191,6 @@ export function MarkdownEditor({
         </div>
       )}
 
-      {/* 顶部工具栏 */}
       <div className="flex flex-wrap items-center gap-1 p-2 bg-gray-50 dark:bg-zinc-900/50 rounded-xl border dark:border-zinc-800">
         <ToolbarButton active={activeStyles.bold} onClick={() => applyStyle('bold')} icon="ri-bold" />
         <ToolbarButton active={activeStyles.italic} onClick={() => applyStyle('italic')} icon="ri-italic" />
@@ -213,7 +203,6 @@ export function MarkdownEditor({
         <div className="flex-grow" />
         {uploading && <div className="flex items-center gap-2 text-[10px] text-theme animate-pulse"><Loading type="spin" color="#FC466B" height={12} width={12} /> 处理中...</div>}
         
-        {/* 公式按钮 */}
         <div className="relative group">
           <button className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded flex items-center gap-1">
             <i className="ri-functions" /><i className="ri-arrow-down-s-line text-[10px]" />
