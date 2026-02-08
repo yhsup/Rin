@@ -33,13 +33,17 @@
         bottom: 25px !important;
         right: 25px !important;
         z-index: 10001 !important;
+        /* --- 仅修改以下三行：固定歌词宽度并换行 --- */
+        width: 100px !important;
+        white-space: normal !important;
+        text-align: right !important;
       }
 
       /* --- 2. 强制控制看板娘大小 (CSS 方案) --- */
       /* 这里的选择器是该脚本生成的通用类名 */
       #waifu, #live2d {
         width: 150px !important;   /* 你要求的宽度 */
-        height: 205px !important; /* 你要求的高度 */
+        height: 225px !important; /* 你要求的高度 */
       }
 
       #waifu-tips {
