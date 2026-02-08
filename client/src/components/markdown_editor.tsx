@@ -21,7 +21,7 @@ export function MarkdownEditor({
   setContent,
   placeholder = "> Write your content here...",
   height = "400px",
-  fontFamily: defaultFontFamily = "Sarasa Mono SC, JetBrains Mono, monospace"
+  fontFamily: defaultFontFamily = "ui-monospace, SFMono-Regular, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace"
 }: MarkdownEditorProps) {
   const { t } = useTranslation();
   const colorMode = useColorMode();
@@ -31,12 +31,28 @@ export function MarkdownEditor({
   const [uploading, setUploading] = useState(false);
   const [currentFont, setCurrentFont] = useState(defaultFontFamily);
 
+  // --- 适配多端浏览器的字体簇配置 ---
   const fontOptions = [
-    { name: "等宽 (默认)", value: "Sarasa Mono SC, JetBrains Mono, monospace" },
-    { name: "代码连字 (Fira Code)", value: "'Fira Code', monospace" },
-    { name: "思源宋体 (Noto Serif SC)", value: "'Noto Serif SC', serif" },
-    { name: "马善政毛笔", value: "'Ma Shan Zheng', cursive" },
-    { name: "之芒行书", value: "'Zhi Mang Xing', cursive" },
+    { 
+      name: "极客等宽", 
+      value: "ui-monospace, SFMono-Regular, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace" 
+    },
+    { 
+      name: "现代黑体", 
+      value: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif" 
+    },
+    { 
+      name: "经典宋体", 
+      value: "Georgia, 'Nimbus Roman No9 L', 'Songti SC', 'Noto Serif CJK SC', 'Source Han Serif SC', 'Source Han Serif CN', STSong, 'AR PL New Sung', 'SimSun', serif" 
+    },
+    { 
+      name: "雅致楷体", 
+      value: "'Kaiti SC', 'Noto Serif CJK SC', 'KaiTi', 'STKaiti', 'AR PL UKai CN', serif" 
+    },
+    { 
+      name: "圆润体", 
+      value: "'Quicksand', 'Yuanti SC', 'Microsoft YaHei', sans-serif" 
+    }
   ];
 
   function uploadImage(file: File, onSuccess: (url: string) => void, showAlert: (msg: string) => void) {
@@ -158,18 +174,16 @@ export function MarkdownEditor({
     );
   }
 
-  // --- 增强：模拟 Word 的中文双击选中逻辑 ---
   const handleEditorMount = (editor: editor.IStandaloneCodeEditor) => {
     editorRef.current = editor;
     
     editor.onMouseDown((e) => {
-      if (e.event.detail === 2) { // 双击事件
+      if (e.event.detail === 2) {
         const position = e.target.position;
         if (!position) return;
         const model = editor.getModel();
         if (!model) return;
 
-        // 1. 行首双击选中整行
         if (position.column === 1) {
           const lineContent = model.getLineContent(position.lineNumber);
           editor.setSelection(new Selection(position.lineNumber, 1, position.lineNumber, lineContent.length + 1));
@@ -177,29 +191,18 @@ export function MarkdownEditor({
           return;
         }
 
-        // 2. 中文词组模拟选中逻辑
         const lineContent = model.getLineContent(position.lineNumber);
-        const offset = position.column - 1; // 当前点击在字符串中的索引
-
-        // 定义分词边界：标点、空格、Markdown 符号
+        const offset = position.column - 1;
         const boundaryRegex = /[\s，。！？、；：""''（）【】《》\[\](){}<>|*`~_-]/;
 
         let start = offset;
         let end = offset;
+        while (start > 0 && !boundaryRegex.test(lineContent[start - 1])) { start--; }
+        while (end < lineContent.length && !boundaryRegex.test(lineContent[end])) { end++; }
 
-        // 向左寻找边界
-        while (start > 0 && !boundaryRegex.test(lineContent[start - 1])) {
-          start--;
-        }
-        // 向右寻找边界
-        while (end < lineContent.length && !boundaryRegex.test(lineContent[end])) {
-          end++;
-        }
-
-        // 如果找到了有效的词范围（长度大于0且不是纯边界点击）
         if (start < end) {
           editor.setSelection(new Selection(position.lineNumber, start + 1, position.lineNumber, end + 1));
-          e.event.preventDefault(); // 阻止 Monaco 默认的分词选中
+          e.event.preventDefault();
           e.event.stopPropagation();
         }
       }
@@ -235,9 +238,20 @@ export function MarkdownEditor({
           <div className="flex flex-wrap items-center gap-y-2 gap-x-1 mb-2 p-2 bg-gray-50 dark:bg-zinc-900/50 rounded-xl border dark:border-zinc-800">
             <UploadImageButton />
             <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
-            <select value={currentFont} onChange={(e) => setCurrentFont(e.target.value)} className="text-xs bg-transparent border border-gray-300 dark:border-zinc-700 rounded px-1 py-1 focus:outline-none dark:text-white">
-              {fontOptions.map(f => <option key={f.value} value={f.value} className="dark:bg-zinc-900">{f.name}</option>)}
+            
+            {/* 字体下拉菜单：适配全平台 */}
+            <select 
+              value={currentFont} 
+              onChange={(e) => setCurrentFont(e.target.value)} 
+              className="text-xs bg-transparent border border-gray-300 dark:border-zinc-700 rounded px-1 py-1 focus:outline-none dark:text-white max-w-[100px]"
+            >
+              {fontOptions.map(f => (
+                <option key={f.name} value={f.value} className="dark:bg-zinc-900" style={{ fontFamily: f.value }}>
+                  {f.name}
+                </option>
+              ))}
             </select>
+
             <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
             <button onClick={() => applyStyle('bold')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white" title="加粗"><i className="ri-bold" /></button>
             <button onClick={() => applyStyle('italic')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white" title="斜体"><i className="ri-italic" /></button>
@@ -263,8 +277,7 @@ export function MarkdownEditor({
                 automaticLayout: true, 
                 lineNumbers: "on", 
                 padding: { top: 10 },
-                selectOnLineNumbers: true,
-                unicodeHighlight: { ambiguousCharacters: false, invisibleCharacters: false }
+                selectOnLineNumbers: true
               }} 
             />
           </div>
