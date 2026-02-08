@@ -67,15 +67,37 @@ export function Markdown({ content }: { content: string }) {
   const Content = useMemo(() => (
     <div className="markdown-render-container">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;700&family=Zhi+Mang+Xing&family=Fira+Code:wght@400;500&display=swap');
-        .toc-content { word-break: break-word; line-height: 1.7; white-space: normal; }
+        /* 引入 Google Fonts 备用 */
+        @import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;700&family=Zhi+Mang+Xing&family=Fira+Code:wght@400;500&family=Quicksand:wght@400;700&display=swap');
+
+        /* 全平台适配字体簇定义 */
+        :root {
+          --font-mono: ui-monospace, SFMono-Regular, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+          --font-sans: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+        }
+
+        .toc-content { 
+          word-break: break-word; 
+          line-height: 1.8; 
+          white-space: normal; 
+          /* 核心修改：发布后默认使用现代无衬线字体簇，适配大部分浏览器 */
+          font-family: var(--font-sans);
+          font-size: 16px;
+        }
+
         .toc-content table br { display: none; }
         .toc-content table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; display: table !important; }
-        .toc-content th, .toc-content td { border: 1px solid #ddd; padding: 10px; line-height: 1.5; }
+        .toc-content th, .toc-content td { border: 1px solid rgba(0,0,0,0.1); padding: 10px; line-height: 1.5; }
+        .dark .toc-content th, .dark .toc-content td { border-color: rgba(255,255,255,0.1); }
         .toc-content th { background-color: rgba(0,0,0,0.02); }
         .toc-content p { margin-bottom: 1.1rem; }
         .aspect-video { aspect-ratio: 16 / 9; width: 100%; background: #000; border-radius: 0.75rem; overflow: hidden; }
-        .code-block-wrapper { font-family: 'Fira Code', monospace; font-variant-ligatures: normal; }
+        
+        /* 确保代码块和行内代码使用等宽字体簇 */
+        .code-block-wrapper, .toc-content code { 
+          font-family: var(--font-mono) !important; 
+          font-variant-ligatures: normal; 
+        }
       `}</style>
 
       <ReactMarkdown
@@ -83,7 +105,7 @@ export function Markdown({ content }: { content: string }) {
         remarkPlugins={[gfm, remarkBreaks, remarkMermaid, remarkMath, remarkAlert]}
         rehypePlugins={[rehypeKatex, rehypeRaw]}
         components={{
-          // 图片组件：智能缩放 + 点击灯箱
+          // 图片组件
           img({ node, src, ...props }) {
             const offset = node?.position?.start.offset || 0;
             const previousContent = content.slice(0, offset);
@@ -104,7 +126,7 @@ export function Markdown({ content }: { content: string }) {
             );
           },
 
-          // 代码块组件：高亮 + 复制按钮
+          // 代码块组件
           code(props: any) {
             const { children, className, node, ...rest } = props;
             const match = /language-(\w+)/.exec(className || "");
@@ -142,7 +164,7 @@ export function Markdown({ content }: { content: string }) {
             return <code className="bg-gray-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-[13px] font-mono mx-1" {...rest}>{children}</code>;
           },
 
-          // 链接组件：多媒体嵌入支持
+          // 链接组件
           a: ({ node: _node, children, href, ...props }: any) => {
             if (href?.match(/\.(mp4|webm|ogg)$/i)) {
               return (
