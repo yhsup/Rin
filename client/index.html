@@ -7,15 +7,27 @@
     <link href="https://fonts.css.network/css2?family=Fira+Code:wght@400;700&display=swap" rel="stylesheet">
     
     <style>
-      /* --- 1. 强制控制看板娘大小 --- */
-      #waifu, #live2d {
+      /* --- 1. 看板娘布局控制 --- */
+      #waifu {
+        /* 强制固定在右下角 */
+        right: 0 !important;
+        bottom: 0 !important;
+        left: auto !important;
+        /* 保持你要求的尺寸 */
+        width: 180px !important;   
+        height: 205px !important; 
+        z-index: 9999 !important;
+      }
+
+      #live2d {
         width: 180px !important;   
         height: 205px !important; 
       }
 
       #waifu-tips {
-        width: 100px !important;  
+        width: 120px !important;  /* 稍微加宽提示框，防止文字太挤 */
         font-size: 12px !important;
+        right: 20px !important;   /* 提示框相对于右侧的偏移 */
       }
 
       /* --- 2. 看板娘按钮精简 --- */
@@ -25,7 +37,11 @@
         display: none !important;
       }
 
+      /* 确保鼠标点击能穿透或正常触发 */
       #live2d-widget {
+        position: fixed !important;
+        right: 0 !important;
+        bottom: 0 !important;
         pointer-events: auto !important;
         z-index: 9999 !important;
       }
@@ -42,17 +58,21 @@
     <div id="root"></div>
 
     <script>
-      // 看板娘设置
+      // 看板娘核心设置
       window.live2d_settings = {
         modelId: 2,
         tips: true,
-        widgetsConfig: { position: 'left', bottom: '0px' },     
+        // 将位置配置为 right: 0, bottom: 0
+        widgetsConfig: { 
+          position: 'right', 
+          bottom: '0px',
+          right: '0px' 
+        },     
         mobile: { show: false }      
       };
     </script>
 
     <script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script>
-    
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
