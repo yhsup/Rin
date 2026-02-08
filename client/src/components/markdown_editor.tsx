@@ -39,6 +39,7 @@ export function MarkdownEditor({
     { label: "根号 (sqrt)", value: "$\\sqrt{内容}$", placeholder: "内容" },
   ];
 
+  // --- 终极状态感应逻辑：分层探测 & 独立标签识别 ---
   const checkStyleStatus = useCallback((editor: editor.IStandaloneCodeEditor) => {
     const model = editor.getModel();
     const selection = editor.getSelection();
@@ -46,19 +47,33 @@ export function MarkdownEditor({
     const line = model.getLineContent(selection.startLineNumber);
     const col = selection.startColumn;
 
-    const isWrapped = (open: string, close: string) => {
+    // 1. 探测星号层级 (Markdown 核心)
+    const getStarLevel = () => {
+      for (let i = 3; i >= 1; i--) {
+        const s = "*".repeat(i);
+        const idxOpen = line.lastIndexOf(s, col - 1);
+        const idxClose = line.indexOf(s, col - 1);
+        if (idxOpen !== -1 && idxClose !== -1 && idxOpen < idxClose) return i;
+      }
+      return 0;
+    };
+
+    // 2. 探测独立标签 (HTML 风格)
+    const hasTag = (open: string, close: string) => {
       const idxOpen = line.lastIndexOf(open, col - 1);
       const idxClose = line.indexOf(close, col - 1);
       return idxOpen !== -1 && idxClose !== -1 && idxOpen < idxClose;
     };
 
+    const sLevel = getStarLevel();
+
     setActiveStyles({
-      bold: isWrapped('**', '**'),
-      italic: (line.lastIndexOf('*', col - 1) !== -1 && line.indexOf('*', col - 1) !== -1),
-      underline: isWrapped('<u>', '</u>'),
-      strikethrough: isWrapped('~~', '~~'),
-      sup: isWrapped('<sup>', '</sup>'),
-      sub: isWrapped('<sub>', '</sub>'),
+      bold: sLevel >= 2,                         // ** 或 *** 触发加粗
+      italic: sLevel === 1 || sLevel === 3,      // * 或 *** 触发斜体
+      underline: hasTag('<u>', '</u>'),
+      strikethrough: hasTag('~~', '~~'),
+      sup: hasTag('<sup>', '</sup>'),
+      sub: hasTag('<sub>', '</sub>'),
     });
   }, []);
 
@@ -85,10 +100,10 @@ export function MarkdownEditor({
     
     editor.executeEdits("style", [{ range: selection, text: newText, forceMoveMarkers: true }]);
     
-    // 强制同步选区，确保状态感应函数能正确读到位置
+    // 延迟执行状态同步，确保 UI 刷新
     setTimeout(() => {
         checkStyleStatus(editor);
-    }, 10);
+    }, 25);
     editor.focus();
   }, [checkStyleStatus]);
 
@@ -174,7 +189,7 @@ export function MarkdownEditor({
         const coords = editor.getScrolledVisiblePosition(e.selection.getStartPosition());
         if (coords) {
           const rect = editor.getDomNode()?.getBoundingClientRect();
-          setBubblePos(rect ? { x: coords.left + rect.left, y: coords.top + rect.top - 55 } : null);
+          setBubblePos(rect ? { x: coords.left + rect.left, y: coords.top + rect.top - 65 } : null);
         }
       } else {
         setBubblePos(null);
@@ -188,6 +203,7 @@ export function MarkdownEditor({
 
   return (
     <div className="flex flex-col gap-2 relative">
+      {/* 悬浮工具栏 */}
       {bubblePos && (
         <div className="fixed z-[100] flex items-center gap-0.5 bg-white dark:bg-zinc-800 shadow-2xl border dark:border-zinc-700 p-1.5 rounded-xl animate-in fade-in zoom-in-95 duration-100"
              style={{ left: bubblePos.x, top: bubblePos.y }}>
@@ -199,12 +215,13 @@ export function MarkdownEditor({
           <ToolbarButton active={activeStyles.sup} onClick={() => applyStyle('sup')} icon="ri-superscript" sm />
           <ToolbarButton active={activeStyles.sub} onClick={() => applyStyle('sub')} icon="ri-subscript" sm />
           <div className="w-[1px] h-3 bg-gray-200 dark:bg-zinc-700 mx-1" />
-          <button onClick={() => insertMathTemplate("$公式$", "公式")} className="p-1 text-theme hover:bg-gray-100 dark:hover:bg-zinc-700 rounded transition-colors" title="快速插入公式">
+          <button onClick={() => insertMathTemplate("$公式$", "公式")} className="p-1 text-theme hover:bg-gray-100 dark:hover:bg-zinc-700 rounded transition-colors">
             <i className="ri-functions text-sm" />
           </button>
         </div>
       )}
 
+      {/* 顶部工具栏 */}
       <div className="flex flex-wrap items-center gap-1 p-2 bg-gray-50 dark:bg-zinc-900/50 rounded-xl border dark:border-zinc-800">
         <label className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded text-theme cursor-pointer" title="上传图片">
           <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files?.[0])} />
