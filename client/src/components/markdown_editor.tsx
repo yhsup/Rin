@@ -104,7 +104,6 @@ export function MarkdownEditor({
     editor.focus();
   };
 
-  // 清除格式逻辑
   const removeFormatting = () => {
     const editor = editorRef.current;
     if (!editor) return;
@@ -199,7 +198,6 @@ export function MarkdownEditor({
       <div className={`grid grid-cols-1 ${preview === 'comparison' ? "lg:grid-cols-2" : ""} gap-4`}>
         <div className={preview === 'preview' ? "hidden" : "flex flex-col"}>
           
-          {/* 工具栏更新：找回高亮按钮 */}
           <div className="flex flex-wrap items-center gap-y-2 gap-x-1 mb-2 p-2 bg-gray-50 dark:bg-zinc-900/50 rounded-xl border dark:border-zinc-800">
             <UploadImageButton />
             <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
@@ -210,10 +208,7 @@ export function MarkdownEditor({
             
             <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
             
-            {/* 颜色与高亮组 */}
-            <div className="flex items-center px-1">
-              <input type="color" className="w-5 h-5 p-0 border-none cursor-pointer bg-transparent" onChange={(e) => applySpanStyle(`color: ${e.target.value}`)} title="颜色" />
-            </div>
+            {/* 仅保留高亮和清除格式 */}
             <button onClick={() => applySpanStyle('background-color: #ffff00; color: #000')} className="p-1.5 bg-yellow-200 hover:bg-yellow-300 rounded text-black shadow-sm" title="高亮">
               <i className="ri-mark-pen-line text-sm" />
             </button>
