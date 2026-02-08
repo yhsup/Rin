@@ -16,7 +16,7 @@ import Zoom from "yet-another-react-lightbox/plugins/zoom";
 import "yet-another-react-lightbox/styles.css";
 import { useColorMode } from "../utils/darkModeUtils";
 
-// --- 工具函数：判断图片在 Markdown 中的上下文 ---
+// --- 工具函数 ---
 const countNewlinesBeforeNode = (text: string, offset: number) => {
   let newlinesBefore = 0;
   for (let i = offset - 1; i >= 0; i--) {
@@ -41,10 +41,8 @@ export function Markdown({ content }: { content: string }) {
   const [index, setIndex] = React.useState(-1);
   const slides = useRef<SlideImage[]>();
 
-  // 内容更新时重置灯箱缓存
   useEffect(() => { slides.current = undefined; }, [content]);
 
-  // 灯箱触发函数
   const showLightbox = (src: string | undefined) => {
     if (!slides.current) {
       const parent = document.getElementsByClassName("toc-content")[0];
@@ -67,10 +65,7 @@ export function Markdown({ content }: { content: string }) {
   const Content = useMemo(() => (
     <div className="markdown-render-container">
       <style>{`
-        /* 引入 Google Fonts 备用 */
-        @import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;700&family=Zhi+Mang+Xing&family=Fira+Code:wght@400;500&family=Quicksand:wght@400;700&display=swap');
-
-        /* 全平台适配字体簇定义 */
+        /* 全平台适配标准字体簇 */
         :root {
           --font-mono: ui-monospace, SFMono-Regular, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
           --font-sans: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
@@ -80,7 +75,6 @@ export function Markdown({ content }: { content: string }) {
           word-break: break-word; 
           line-height: 1.8; 
           white-space: normal; 
-          /* 核心修改：发布后默认使用现代无衬线字体簇，适配大部分浏览器 */
           font-family: var(--font-sans);
           font-size: 16px;
         }
@@ -93,7 +87,6 @@ export function Markdown({ content }: { content: string }) {
         .toc-content p { margin-bottom: 1.1rem; }
         .aspect-video { aspect-ratio: 16 / 9; width: 100%; background: #000; border-radius: 0.75rem; overflow: hidden; }
         
-        /* 确保代码块和行内代码使用等宽字体簇 */
         .code-block-wrapper, .toc-content code { 
           font-family: var(--font-mono) !important; 
           font-variant-ligatures: normal; 
@@ -105,7 +98,6 @@ export function Markdown({ content }: { content: string }) {
         remarkPlugins={[gfm, remarkBreaks, remarkMermaid, remarkMath, remarkAlert]}
         rehypePlugins={[rehypeKatex, rehypeRaw]}
         components={{
-          // 图片组件
           img({ node, src, ...props }) {
             const offset = node?.position?.start.offset || 0;
             const previousContent = content.slice(0, offset);
@@ -125,8 +117,6 @@ export function Markdown({ content }: { content: string }) {
               </span>
             );
           },
-
-          // 代码块组件
           code(props: any) {
             const { children, className, node, ...rest } = props;
             const match = /language-(\w+)/.exec(className || "");
@@ -163,8 +153,6 @@ export function Markdown({ content }: { content: string }) {
             }
             return <code className="bg-gray-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-[13px] font-mono mx-1" {...rest}>{children}</code>;
           },
-
-          // 链接组件
           a: ({ node: _node, children, href, ...props }: any) => {
             if (href?.match(/\.(mp4|webm|ogg)$/i)) {
               return (
@@ -186,8 +174,6 @@ export function Markdown({ content }: { content: string }) {
             }
             return <a href={href} {...props} className="text-theme hover:underline">{children}</a>;
           },
-
-          // 基础布局组件
           table: ({ node: _node, ...props }: any) => <div className="overflow-x-auto"><table {...props} /></div>,
           th: ({ node: _node, ...props }: any) => <th className="bg-gray-100 dark:bg-zinc-800 border font-bold" {...props} />,
           td: ({ node: _node, ...props }: any) => <td className="border" {...props} />,
@@ -196,8 +182,6 @@ export function Markdown({ content }: { content: string }) {
           ),
           ol: ({ children, ...props }: any) => <ol className="list-decimal pl-5 mt-2" {...props}>{children}</ol>,
           li: ({ children, ...props }: any) => <li className="pl-2 py-0.5" {...props}>{children}</li>,
-          
-          // 脚注容器
           section: ({ children, ...props }: any) => {
             const isFootnote = props["data-footnotes"] !== undefined;
             return (
@@ -222,12 +206,7 @@ export function Markdown({ content }: { content: string }) {
         open={index >= 0} 
         close={() => setIndex(-1)} 
         plugins={[Zoom, Counter]} 
-        zoom={{
-          maxZoomPixelRatio: 3,
-          zoomInMultiplier: 2,
-          wheelZoomDistanceFactor: 100,
-          scrollToZoom: true
-        }}
+        zoom={{ maxZoomPixelRatio: 3, zoomInMultiplier: 2, wheelZoomDistanceFactor: 100, scrollToZoom: true }}
       />
     </>
   );
