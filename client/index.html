@@ -20,8 +20,8 @@
         right: 200px !important; 
         left: auto !important;
         bottom: auto !important;
-        width: 40px !important;  
-        height: 60px !important; 
+        width: 35px !important;  
+        height: 55px !important; 
         background: rgba(255, 255, 255, 0.15) !important;
         backdrop-filter: blur(10px);
         border: 1px solid rgba(255, 255, 255, 0.2);
@@ -32,17 +32,24 @@
       .aplayer.aplayer-fixed .aplayer-lrc {
         bottom: 25px !important;
         right: 25px !important;
+        left: auto !important; 
         z-index: 10001 !important;
-        /* --- 仅在此处增加：固定宽度并自动换行 --- */
         width: 100px !important;
         white-space: normal !important;
         text-align: right !important;
       }
 
-      /* --- 2. 强制控制看板娘大小 (CSS 方案) --- */
+      /* 【新增】优化换行后的间距，防止文字重叠 */
+      .aplayer.aplayer-fixed .aplayer-lrc p {
+        line-height: 1.6 !important; /* 增加行间距 */
+        margin-bottom: 8px !important; /* 增加段落间距 */
+        overflow: visible !important;
+      }
+
+      /* --- 2. 强制控制看板娘大小 --- */
       #waifu, #live2d {
         width: 150px !important;   
-        height: 255px !important; 
+        height: 205px !important; 
       }
 
       #waifu-tips {
