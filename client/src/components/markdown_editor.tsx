@@ -217,6 +217,10 @@ export function MarkdownEditor({
           <ToolbarButton active={activeStyles.bold} onClick={() => applyStyle('bold')} icon="ri-bold" sm />
           <ToolbarButton active={activeStyles.italic} onClick={() => applyStyle('italic')} icon="ri-italic" sm />
           <ToolbarButton active={activeStyles.underline} onClick={() => applyStyle('underline')} icon="ri-underline" sm />
+          <ToolbarButton active={activeStyles.strikethrough} onClick={() => applyStyle('strikethrough')} icon="ri-strikethrough" sm />
+          <ToolbarButton active={activeStyles.sup} onClick={() => applyStyle('sup')} icon="ri-superscript" sm />
+          <ToolbarButton active={activeStyles.sub} onClick={() => applyStyle('sub')} icon="ri-subscript" sm />
+          <div className="w-[1px] h-3 bg-gray-200 dark:bg-zinc-700 mx-1" />
           <div className="w-[1px] h-3 bg-gray-200 dark:bg-zinc-700 mx-1" />
           <ToolbarButton onClick={() => applyStyle('table')} icon="ri-table-line" sm />
           <button onClick={() => insertMathTemplate("$公式$", "公式")} className="p-1 text-theme hover:bg-gray-100 dark:hover:bg-zinc-700 rounded transition-colors"><i className="ri-functions text-sm" /></button>
