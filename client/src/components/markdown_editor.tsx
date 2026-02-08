@@ -1,6 +1,6 @@
 import Editor from '@monaco-editor/react';
 import { editor, Selection } from 'monaco-editor';
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import Loading from 'react-loading';
 import { useColorMode } from "../utils/darkModeUtils";
@@ -21,7 +21,7 @@ export function MarkdownEditor({
   setContent,
   placeholder = "> Write your content here...",
   height = "400px",
-  fontFamily: defaultFontFamily = "ui-monospace, SFMono-Regular, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace"
+  fontFamily = "ui-monospace, SFMono-Regular, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace"
 }: MarkdownEditorProps) {
   const { t } = useTranslation();
   const colorMode = useColorMode();
@@ -29,31 +29,94 @@ export function MarkdownEditor({
   const isComposingRef = useRef(false); 
   const [preview, setPreview] = useState<'edit' | 'preview' | 'comparison'>('edit');
   const [uploading, setUploading] = useState(false);
-  const [currentFont, setCurrentFont] = useState(defaultFontFamily);
 
-  // --- 适配多端浏览器的字体簇配置 ---
-  const fontOptions = [
-    { 
-      name: "极客等宽", 
-      value: "ui-monospace, SFMono-Regular, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace" 
-    },
-    { 
-      name: "现代黑体", 
-      value: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif" 
-    },
-    { 
-      name: "经典宋体", 
-      value: "Georgia, 'Nimbus Roman No9 L', 'Songti SC', 'Noto Serif CJK SC', 'Source Han Serif SC', 'Source Han Serif CN', STSong, 'AR PL New Sung', 'SimSun', serif" 
-    },
-    { 
-      name: "雅致楷体", 
-      value: "'Kaiti SC', 'Noto Serif CJK SC', 'KaiTi', 'STKaiti', 'AR PL UKai CN', serif" 
-    },
-    { 
-      name: "圆润体", 
-      value: "'Quicksand', 'Yuanti SC', 'Microsoft YaHei', sans-serif" 
-    }
+  // --- 数学符号定义 ---
+  const mathSymbols = [
+    { label: "行内公式", value: "$ $", offset: 2 },
+    { label: "块级公式", value: "\n$$\n\n$$\n", offset: 4 },
+    { label: "分式 (frac)", value: "\\frac{num}{den}", offset: 10 },
+    { label: "根号 (sqrt)", value: "\\sqrt{x}", offset: 7 },
+    { label: "求和 (sum)", value: "\\sum_{i=1}^{n}", offset: 13 },
+    { label: "积分 (int)", value: "\\int_{a}^{b}", offset: 11 },
+    { label: "乘法 (times)", value: "\\times", offset: 7 },
+    { label: "希腊字母 (π)", value: "\\pi", offset: 3 },
   ];
+
+  const insertText = (text: string, selectionOffset?: number) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const selection = editor.getSelection();
+    if (!selection) return;
+
+    editor.executeEdits("insert-text", [{
+      range: selection,
+      text: text,
+      forceMoveMarkers: true
+    }]);
+
+    if (selectionOffset) {
+      const position = editor.getPosition();
+      if (position) {
+        editor.setPosition({
+          lineNumber: position.lineNumber,
+          column: position.column - (text.length - selectionOffset)
+        });
+      }
+    }
+    editor.focus();
+  };
+
+  function MathFormulaButton() {
+    const [isOpen, setIsOpen] = useState(false);
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+        if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+          setIsOpen(false);
+        }
+      };
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    return (
+      <div className="relative" ref={menuRef}>
+        <div className="flex items-center bg-gray-100 dark:bg-zinc-800 rounded">
+          <button 
+            onClick={() => insertText("\n$$\n\n$$\n", 4)} 
+            className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded-l dark:text-white border-r dark:border-zinc-700" 
+            title="插入公式块"
+          >
+            <i className="ri-functions" />
+          </button>
+          <button 
+            onClick={() => setIsOpen(!isOpen)} 
+            className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded-r dark:text-white"
+          >
+            <i className="ri-arrow-down-s-line text-[10px]" />
+          </button>
+        </div>
+
+        {isOpen && (
+          <div className="absolute left-0 top-full mt-1 z-50 w-40 bg-white dark:bg-zinc-900 border dark:border-zinc-700 rounded-lg shadow-xl py-1 grid grid-cols-1">
+            {mathSymbols.map((sym) => (
+              <button
+                key={sym.label}
+                className="px-3 py-1.5 text-left text-xs hover:bg-theme hover:text-white dark:text-gray-300 transition-colors"
+                onClick={() => {
+                  insertText(sym.value, sym.offset);
+                  setIsOpen(false);
+                }}
+              >
+                {sym.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   function uploadImage(file: File, onSuccess: (url: string) => void, showAlert: (msg: string) => void) {
     client.storage.index.post({ key: file.name, file: file }, { headers: headersWithAuth() })
@@ -84,7 +147,6 @@ export function MarkdownEditor({
     const selection = editor.getSelection();
     const model = editor.getModel();
     if (!selection || !model) return;
-
     const selectedText = model.getValueInRange(selection);
     const styleMap: Record<string, { before: string; after: string; reg: RegExp }> = {
       bold: { before: '**', after: '**', reg: /^\*\*([\s\S]*)\*\*$/ },
@@ -94,19 +156,10 @@ export function MarkdownEditor({
       sup: { before: '<sup>', after: '</sup>', reg: /^<sup>([\s\S]*)<\/sup>$/ },
       sub: { before: '<sub>', after: '</sub>', reg: /^<sub>([\s\S]*)<\/sub>$/ },
     };
-
     const style = styleMap[type];
     if (!style) return;
-
-    let newText = "";
-    if (style.reg.test(selectedText)) {
-      newText = selectedText.replace(style.reg, '$1');
-    } else {
-      newText = `${style.before}${selectedText}${style.after}`;
-    }
-
+    let newText = style.reg.test(selectedText) ? selectedText.replace(style.reg, '$1') : `${style.before}${selectedText}${style.after}`;
     editor.executeEdits("style", [{ range: selection, text: newText, forceMoveMarkers: true }]);
-    
     if (!selection.isEmpty()) {
         const lines = newText.split('\n');
         const endLineNumber = selection.startLineNumber + lines.length - 1;
@@ -176,30 +229,25 @@ export function MarkdownEditor({
 
   const handleEditorMount = (editor: editor.IStandaloneCodeEditor) => {
     editorRef.current = editor;
-    
     editor.onMouseDown((e) => {
       if (e.event.detail === 2) {
         const position = e.target.position;
         if (!position) return;
         const model = editor.getModel();
         if (!model) return;
-
         if (position.column === 1) {
           const lineContent = model.getLineContent(position.lineNumber);
           editor.setSelection(new Selection(position.lineNumber, 1, position.lineNumber, lineContent.length + 1));
           e.event.preventDefault();
           return;
         }
-
         const lineContent = model.getLineContent(position.lineNumber);
         const offset = position.column - 1;
         const boundaryRegex = /[\s，。！？、；：""''（）【】《》\[\](){}<>|*`~_-]/;
-
         let start = offset;
         let end = offset;
         while (start > 0 && !boundaryRegex.test(lineContent[start - 1])) { start--; }
         while (end < lineContent.length && !boundaryRegex.test(lineContent[end])) { end++; }
-
         if (start < end) {
           editor.setSelection(new Selection(position.lineNumber, start + 1, position.lineNumber, end + 1));
           e.event.preventDefault();
@@ -207,7 +255,6 @@ export function MarkdownEditor({
         }
       }
     });
-
     const inputElement = editor.getDomNode()?.querySelector('textarea');
     if (inputElement) {
       inputElement.addEventListener('compositionstart', () => { isComposingRef.current = true; });
@@ -239,25 +286,17 @@ export function MarkdownEditor({
             <UploadImageButton />
             <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
             
-            {/* 字体下拉菜单：适配全平台 */}
-            <select 
-              value={currentFont} 
-              onChange={(e) => setCurrentFont(e.target.value)} 
-              className="text-xs bg-transparent border border-gray-300 dark:border-zinc-700 rounded px-1 py-1 focus:outline-none dark:text-white max-w-[100px]"
-            >
-              {fontOptions.map(f => (
-                <option key={f.name} value={f.value} className="dark:bg-zinc-900" style={{ fontFamily: f.value }}>
-                  {f.name}
-                </option>
-              ))}
-            </select>
-
-            <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
             <button onClick={() => applyStyle('bold')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white" title="加粗"><i className="ri-bold" /></button>
             <button onClick={() => applyStyle('italic')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white" title="斜体"><i className="ri-italic" /></button>
             <button onClick={() => applyStyle('underline')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white" title="下划线"><i className="ri-underline" /></button>
             <button onClick={() => applyStyle('strikethrough')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white" title="中划线"><i className="ri-strikethrough" /></button>
+            
+            <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
             <button onClick={insertTable} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white" title="插入表格"><i className="ri-table-line" /></button>
+            
+            {/* 保留：数学公式按钮及下拉符号 */}
+            <MathFormulaButton />
+
             <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
             <button onClick={() => applyStyle('sup')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white" title="上标"><i className="ri-superscript" /></button>
             <button onClick={() => applyStyle('sub')} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded dark:text-white" title="下标"><i className="ri-subscript" /></button>
@@ -268,17 +307,7 @@ export function MarkdownEditor({
 
           <div className="border rounded-xl overflow-hidden dark:border-zinc-800 bg-white dark:bg-[#1e1e1e]" onPaste={handlePaste}>
             <Editor onMount={handleEditorMount} height={height} defaultLanguage="markdown" value={content} theme={colorMode === "dark" ? "vs-dark" : "light"}
-              options={{ 
-                wordWrap: "on", 
-                fontFamily: currentFont, 
-                fontLigatures: true, 
-                fontSize: 14, 
-                minimap: { enabled: false }, 
-                automaticLayout: true, 
-                lineNumbers: "on", 
-                padding: { top: 10 },
-                selectOnLineNumbers: true
-              }} 
+              options={{ wordWrap: "on", fontFamily: fontFamily, fontLigatures: true, fontSize: 14, minimap: { enabled: false }, automaticLayout: true, lineNumbers: "on", padding: { top: 10 }, selectOnLineNumbers: true }} 
             />
           </div>
         </div>
