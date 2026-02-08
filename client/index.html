@@ -35,14 +35,42 @@
         left: auto !important; 
         z-index: 10001 !important;
         width: 100px !important;
+        /* 核心修复：允许溢出内容可见，并取消默认高度限制 */
+        overflow: visible !important;
+        height: auto !important;
         white-space: normal !important;
         text-align: right !important;
+        background: none !important; /* 移除阴影遮罩防止遮挡换行文字 */
+      }
+
+      /* 针对 APlayer 内部滚动容器的修复 */
+      .aplayer.aplayer-fixed .aplayer-lrc .aplayer-lrc-contents {
+        width: 100px !important;
+        white-space: normal !important;
+        overflow: visible !important;
+        transform: none !important; /* 禁用位移防止长歌词飘走 */
+        position: relative !important;
       }
 
       /* 优化换行后的间距 */
       .aplayer.aplayer-fixed .aplayer-lrc p {
         line-height: 1.6 !important;
         margin-bottom: 8px !important;
+        /* 核心修复：让每一行歌词都能自动换行且不裁剪 */
+        white-space: normal !important;
+        height: auto !important;
+        opacity: 0;
+        display: none;
+      }
+
+      /* 确保当前播放的歌词可见且换行 */
+      .aplayer.aplayer-fixed .aplayer-lrc p.aplayer-lrc-current {
+        opacity: 1;
+        display: block;
+        font-size: 14px;
+        font-weight: bold;
+        color: #6366f1; /* 建议的高亮色，可随你喜欢修改 */
+        text-shadow: 0 1px 2px rgba(255,255,255,0.5);
       }
 
       /* --- 2. 强制控制看板娘大小 --- */
