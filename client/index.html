@@ -21,7 +21,7 @@
         left: auto !important;
         bottom: auto !important;
         width: 40px !important;  
-        height: 60px !important; /* 修正：之前设为 65px 会导致圆形拉伸成椭圆，这里改回 40px */
+        height: 60px !important; 
         background: rgba(255, 255, 255, 0.15) !important;
         backdrop-filter: blur(10px);
         border: 1px solid rgba(255, 255, 255, 0.2);
@@ -33,21 +33,20 @@
         bottom: 25px !important;
         right: 25px !important;
         z-index: 10001 !important;
-        /* --- 仅修改以下三行：固定歌词宽度并换行 --- */
+        /* --- 仅在此处增加：固定宽度并自动换行 --- */
         width: 100px !important;
         white-space: normal !important;
         text-align: right !important;
       }
 
       /* --- 2. 强制控制看板娘大小 (CSS 方案) --- */
-      /* 这里的选择器是该脚本生成的通用类名 */
       #waifu, #live2d {
-        width: 150px !important;   /* 你要求的宽度 */
-        height: 225px !important; /* 你要求的高度 */
+        width: 150px !important;   
+        height: 255px !important; 
       }
 
       #waifu-tips {
-        width: 100px !important;  /* 提示框宽度可以比人物稍宽，否则字看不清 */
+        width: 100px !important;  
         font-size: 12px !important;
       }
 
@@ -78,7 +77,6 @@
     <div id="root"></div>
 
     <script>
-      /* 这里的参数主要用于逻辑控制 */
       window.live2d_settings = {
         modelId: 2,
         tips: true,
