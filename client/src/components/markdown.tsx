@@ -16,7 +16,6 @@ import Zoom from "yet-another-react-lightbox/plugins/zoom";
 import "yet-another-react-lightbox/styles.css";
 import { useColorMode } from "../utils/darkModeUtils";
 
-// --- 工具函数 ---
 const countNewlinesBeforeNode = (text: string, offset: number) => {
   let newlinesBefore = 0;
   for (let i = offset - 1; i >= 0; i--) {
@@ -65,7 +64,6 @@ export function Markdown({ content }: { content: string }) {
   const Content = useMemo(() => (
     <div className="markdown-render-container">
       <style>{`
-        /* 全平台适配标准字体簇 */
         :root {
           --font-mono: ui-monospace, SFMono-Regular, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
           --font-sans: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
@@ -77,6 +75,18 @@ export function Markdown({ content }: { content: string }) {
           white-space: normal; 
           font-family: var(--font-sans);
           font-size: 16px;
+        }
+
+        /* 公式样式补丁 */
+        .katex-display {
+          overflow-x: auto;
+          overflow-y: hidden;
+          padding: 1rem 0;
+          margin: 0.5rem 0;
+        }
+        .katex {
+          font-size: 1.1em;
+          color: inherit; /* 确保在暗色模式下颜色跟随文字 */
         }
 
         .toc-content table br { display: none; }
@@ -96,7 +106,8 @@ export function Markdown({ content }: { content: string }) {
       <ReactMarkdown
         className="toc-content dark:text-neutral-300"
         remarkPlugins={[gfm, remarkBreaks, remarkMermaid, remarkMath, remarkAlert]}
-        rehypePlugins={[rehypeKatex, rehypeRaw]}
+        // 关键：增加配置，关闭严格模式，防止部分语法导致渲染崩溃
+        rehypePlugins={[[rehypeKatex, { strict: false, output: 'html' }], rehypeRaw]}
         components={{
           img({ node, src, ...props }) {
             const offset = node?.position?.start.offset || 0;
