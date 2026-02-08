@@ -1,6 +1,6 @@
 import Editor from '@monaco-editor/react';
-import { editor } from 'monaco-editor';
-import React, { useRef, useState, useEffect } from "react";
+import { editor, Selection } from 'monaco-editor'; // 引入 Selection 类
+import React, { useRef, useState } from "react"; // 删除了未使用的 useEffect
 import { useTranslation } from "react-i18next";
 import Loading from 'react-loading';
 import { useColorMode } from "../utils/darkModeUtils";
@@ -30,7 +30,7 @@ export function MarkdownEditor({
   const [preview, setPreview] = useState<'edit' | 'preview' | 'comparison'>('edit');
   const [uploading, setUploading] = useState(false);
 
-  // --- 1. 图片上传核心逻辑 (从初始代码找回) ---
+  // --- 图片上传逻辑 ---
   function uploadImage(file: File, onSuccess: (url: string) => void, showAlert: (msg: string) => void) {
     client.storage.index
       .post(
@@ -69,7 +69,7 @@ export function MarkdownEditor({
     }
   };
 
-  // --- 2. 样式处理逻辑 (保留你现在的加粗、颜色等功能) ---
+  // --- 样式处理逻辑 ---
   const applyStyle = (type: string) => {
     const editor = editorRef.current;
     if (!editor) return;
@@ -116,14 +116,17 @@ export function MarkdownEditor({
     for (let i = 0; i < rows; i++) {
       tableMd += "| " + Array(cols).fill("Content").join(" | ") + " |\n";
     }
-    editor.executeEdits("table", [{ range: editor.getSelection()!, text: tableMd.trim(), forceMoveMarkers: true }]);
-    editor.focus();
+    const selection = editor.getSelection();
+    if (selection) {
+      editor.executeEdits("table", [{ range: selection, text: tableMd.trim(), forceMoveMarkers: true }]);
+      editor.focus();
+    }
   };
 
-  // --- 3. 上传按钮组件 ---
+  // --- 上传按钮组件 ---
   function UploadImageButton() {
     const uploadRef = useRef<HTMLInputElement>(null);
-    const upChange = (event: any) => {
+    const upChange = (event: React.ChangeEvent<HTMLInputElement>) => {
       const files = event.currentTarget.files;
       if (!files) return;
       for (let i = 0; i < files.length; i++) {
@@ -133,12 +136,12 @@ export function MarkdownEditor({
         } else {
           const editor = editorRef.current;
           if (!editor) return;
-          const selection = editor.getSelection();
+          const selection = editor.getSelection() || new Selection(1, 1, 1, 1);
           setUploading(true);
           uploadImage(file, (url) => {
             setUploading(false);
             editor.executeEdits(undefined, [{
-              range: selection || new editorRef.current!.getSelection(),
+              range: selection,
               text: `![${file.name}](${url})\n`,
             }]);
           }, (msg) => {
@@ -165,7 +168,6 @@ export function MarkdownEditor({
 
   return (
     <div className="flex flex-col gap-2">
-      {/* 顶部工具栏：视图切换 + 上传状态 */}
       <div className="flex flex-row items-center space-x-2 border-b pb-2 dark:border-zinc-800">
         {['edit', 'preview', 'comparison'].map((m) => (
           <button 
@@ -187,8 +189,6 @@ export function MarkdownEditor({
 
       <div className={`grid grid-cols-1 ${preview === 'comparison' ? "lg:grid-cols-2" : ""} gap-4`}>
         <div className={preview === 'preview' ? "hidden" : "flex flex-col"}>
-          
-          {/* 综合工具栏：图片上传 + 样式工具 */}
           <div className="flex flex-wrap items-center gap-y-2 gap-x-1 mb-2 p-2 bg-gray-50 dark:bg-zinc-900/50 rounded-xl border dark:border-zinc-800">
             <UploadImageButton />
             <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
@@ -201,7 +201,6 @@ export function MarkdownEditor({
             </div>
           </div>
 
-          {/* 编辑器区域：支持拖拽上传 */}
           <div 
             className="border rounded-xl overflow-hidden dark:border-zinc-800 shadow-sm bg-white dark:bg-[#1e1e1e]"
             onPaste={handlePaste}
@@ -214,9 +213,9 @@ export function MarkdownEditor({
                 setUploading(true);
                 uploadImage(files[i], (url) => {
                   setUploading(false);
-                  const selection = editor.getSelection();
+                  const selection = editor.getSelection() || new Selection(1, 1, 1, 1);
                   editor.executeEdits(undefined, [{
-                    range: selection || new editorRef.current!.getSelection(),
+                    range: selection,
                     text: `![${files[i].name}](${url})\n`,
                   }]);
                 }, () => setUploading(false));
