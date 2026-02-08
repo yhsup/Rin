@@ -29,7 +29,7 @@
         transition: all 0.3s ease;
       }
 
-      /* 歌词区域核心修复 */
+      /* 歌词区域样式 */
       .aplayer.aplayer-fixed .aplayer-lrc {
         bottom: 25px !important;
         right: 25px !important;
@@ -38,54 +38,40 @@
         width: 100px !important;
         overflow: visible !important;
         height: auto !important;
-        min-height: 20px; /* 确保有高度可以触发 hover */
         white-space: normal !important;
         text-align: center !important; 
         background: none !important;
-        transition: opacity 0.3s;
       }
 
-      /* --- 关闭按钮样式 (CSS 方案) --- */
-      /* 播放器关闭按钮 */
-      .music-close-wrap {
+      /* --- 关闭按钮统一样式 --- */
+      .custom-close-btn {
         position: fixed;
+        cursor: pointer;
+        color: #999;
+        z-index: 10006;
+        opacity: 0; /* 默认隐藏 */
+        transition: opacity 0.3s ease, color 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .custom-close-btn:hover { color: #ff4d4f !important; }
+
+      /* 播放器关闭按钮位置 (35px宽度的右上角) */
+      #musicClose {
         top: 5px;
         right: 195px;
-        z-index: 10006;
-        opacity: 0;
-        transition: opacity 0.3s;
-        cursor: pointer;
-        color: #999;
+        font-size: 18px;
+      }
+
+      /* 歌词隐藏按钮位置 (100px宽度的正上方) */
+      #lrcClose {
+        bottom: 85px; /* 根据歌词高度微调 */
+        right: 65px;  /* (25px边距 + 100px一半) - 按钮宽度一半 */
         font-size: 16px;
       }
-      /* 悬停播放器区域显示按钮 */
-      .aplayer-body:hover + .music-close-wrap, 
-      .music-close-wrap:hover {
-        opacity: 1;
-      }
 
-      /* 歌词隐藏按钮：使用伪元素实现，无需额外 HTML */
-      .aplayer-lrc::before {
-        content: "\f2d7"; /* RemixIcon 的 eye-off 图标编码 */
-        font-family: 'remixicon' !important;
-        position: absolute;
-        top: -20px;
-        left: 50%;
-        transform: translateX(-50%);
-        cursor: pointer;
-        color: #999;
-        font-size: 14px;
-        opacity: 0;
-        transition: opacity 0.3s;
-      }
-      .aplayer-lrc:hover::before {
-        opacity: 1;
-      }
-      .aplayer-lrc::before:hover {
-        color: #ff4d4f;
-      }
-
-      /* 内部容器 */
+      /* 歌词内容修复 */
       .aplayer.aplayer-fixed .aplayer-lrc .aplayer-lrc-contents {
         width: 100px !important;
         white-space: normal !important;
@@ -110,27 +96,15 @@
         color: #999 !important; 
       }
 
-      /* --- 2. 强制控制看板娘大小 --- */
+      /* --- 2. 看板娘大小 --- */
       #waifu, #live2d {
         width: 180px !important;   
         height: 205px !important; 
       }
 
-      /* --- 3. 看板娘按钮精简 --- */
-      #waifu-tool span:nth-child(1), 
-      #waifu-tool span:nth-child(2),
-      #waifu-tool span:nth-child(5) {
-        display: none !important;
-      }
-
-      #live2d-widget {
-        pointer-events: auto !important;
-        z-index: 9999 !important;
-      }
-
-      /* --- 4. 移动端适配 --- */
+      /* --- 3. 移动端适配 --- */
       @media (max-width: 768px) {
-        #waifu, #live2d, #live2d-widget, .aplayer-lrc, .music-close-wrap { display: none !important; }
+        #waifu, #live2d, .aplayer-lrc, .custom-close-btn { display: none !important; }
         .aplayer.aplayer-fixed.aplayer-narrow .aplayer-body {
           top: auto !important;
           bottom: 25px !important;
@@ -140,11 +114,17 @@
     </style>
   </head>
   <body>
-    <div class="music-close-wrap" onclick="closeMusic()"><i class="ri-close-circle-fill"></i></div>
+    <div id="musicClose" class="custom-close-btn" onclick="closeMusic()" title="彻底关闭播放器">
+      <i class="ri-close-circle-fill"></i>
+    </div>
+    <div id="lrcClose" class="custom-close-btn" onclick="hideLrc()" title="隐藏当前歌词">
+      <i class="ri-eye-off-fill"></i>
+    </div>
 
     <div id="root"></div>
 
     <script>
+      // 看板娘设置
       window.live2d_settings = {
         modelId: 2,
         tips: true,
@@ -152,22 +132,44 @@
         mobile: { show: false }      
       };
 
+      // 交互逻辑
       function closeMusic() {
-        const music = document.querySelector('.aplayer-fixed');
-        const btn = document.querySelector('.music-close-wrap');
-        if(music) music.style.display = 'none';
-        if(btn) btn.style.display = 'none';
+        const player = document.querySelector('.aplayer-fixed');
+        if (player) player.style.display = 'none';
+        document.getElementById('musicClose').style.display = 'none';
+        document.getElementById('lrcClose').style.display = 'none';
       }
 
-      // 点击歌词区域隐藏歌词
-      document.addEventListener('click', function(e) {
-        // 判断点击的是否是歌词区域的伪元素位置（近似判断）
-        if (e.target.classList.contains('aplayer-lrc')) {
-          const rect = e.target.getBoundingClientRect();
-          if (e.clientY < rect.top + 10) { // 如果点击的是容器顶部边缘（伪元素位置）
-            e.target.style.opacity = '0';
-            e.target.style.pointerEvents = 'none';
-          }
+      function hideLrc() {
+        const lrc = document.querySelector('.aplayer-lrc');
+        if (lrc) lrc.style.visibility = 'hidden';
+        document.getElementById('lrcClose').style.display = 'none';
+      }
+
+      // 核心修复：手动监听悬停动作
+      document.addEventListener('mouseover', function(e) {
+        const mClose = document.getElementById('musicClose');
+        const lClose = document.getElementById('lrcClose');
+
+        // 检查是否移入播放器区域
+        if (e.target.closest('.aplayer-body')) {
+          mClose.style.opacity = '1';
+        } 
+        // 检查是否移入歌词区域
+        if (e.target.closest('.aplayer-lrc')) {
+          lClose.style.opacity = '1';
+        }
+      });
+
+      document.addEventListener('mouseout', function(e) {
+        const mClose = document.getElementById('musicClose');
+        const lClose = document.getElementById('lrcClose');
+
+        if (e.target.closest('.aplayer-body')) {
+          mClose.style.opacity = '0';
+        }
+        if (e.target.closest('.aplayer-lrc')) {
+          lClose.style.opacity = '0';
         }
       });
     </script>
