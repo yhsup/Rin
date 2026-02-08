@@ -5,88 +5,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link href="https://cdnjs.cloudflare.com/ajax/libs/remixicon/4.2.0/remixicon.min.css" rel="stylesheet" />
     <link href="https://fonts.css.network/css2?family=Fira+Code:wght@400;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer/dist/APlayer.min.css">
     
     <style>
-      /* --- 1. 音乐插件基础 --- */
-      .aplayer.aplayer-fixed.aplayer-narrow .aplayer-body {
-        top: 12px !important;
-        right: 200px !important; 
-        left: auto !important;
-        bottom: auto !important;
-        width: 35px !important;  
-        height: 55px !important; 
-        background: rgba(255, 255, 255, 0.15) !important;
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        z-index: 10002 !important;
-        border-radius: 50% !important;
+      /* --- 1. 强制控制看板娘大小 --- */
+      #waifu, #live2d {
+        width: 180px !important;   
+        height: 205px !important; 
       }
 
-      /* 播放器关闭按钮 (保持原有逻辑) */
-      .aplayer-body::after {
-        content: "\f2d1"; font-family: 'remixicon' !important;
-        position: absolute; top: -8px; right: -8px; font-size: 18px;
-        color: #666 !important; cursor: pointer; opacity: 0; transition: 0.3s; z-index: 10008;
-      }
-      .aplayer-body:hover::after { opacity: 1; }
-
-      /* --- 2. 增强型歌词区域 --- */
-      .aplayer.aplayer-fixed .aplayer-lrc {
-        bottom: 25px !important;
-        right: 25px !important;
-        left: auto !important; 
-        z-index: 10001 !important;
-        width: 140px !important; /* 宽度微调以容纳按钮组 */
-        overflow: visible !important;
-        height: auto !important;
-        text-align: center !important; 
-        background: none !important;
-        opacity: 0; /* 默认隐藏，播放后显示 */
-        transition: opacity 0.5s ease;
+      #waifu-tips {
+        width: 100px !important;  
+        font-size: 12px !important;
       }
 
-      /* 歌词工具栏容器 */
-      .lrc-controls {
-        display: flex;
-        justify-content: center;
-        gap: 8px;
-        margin-bottom: 10px;
-        opacity: 0;
-        transition: opacity 0.3s ease;
-      }
-      .aplayer-lrc:hover .lrc-controls { opacity: 1; }
-
-      .lrc-ctrl-btn {
-        cursor: pointer;
-        color: #999;
-        font-size: 16px;
-        transition: color 0.2s;
-      }
-      .lrc-ctrl-btn:hover { color: #6366f1; }
-      .lrc-ctrl-btn.close:hover { color: #ff4d4f; }
-
-      /* 歌词文本 */
-      .aplayer.aplayer-fixed .aplayer-lrc .aplayer-lrc-contents {
-        width: 100% !important;
-        transform: none !important;
-        position: relative !important;
-      }
-      .aplayer.aplayer-fixed .aplayer-lrc p {
-        white-space: normal !important;
-        height: auto !important;
-        line-height: 1.6 !important;
-        opacity: 0; display: none;
-      }
-      .aplayer.aplayer-fixed .aplayer-lrc p.aplayer-lrc-current {
-        opacity: 1; display: block; font-size: 14px; color: #999 !important; 
+      /* --- 2. 看板娘按钮精简 --- */
+      #waifu-tool span:nth-child(1), 
+      #waifu-tool span:nth-child(2),
+      #waifu-tool span:nth-child(5) {
+        display: none !important;
       }
 
-      /* --- 3. 看板娘大小 --- */
-      #waifu, #live2d { width: 180px !important; height: 205px !important; }
+      #live2d-widget {
+        pointer-events: auto !important;
+        z-index: 9999 !important;
+      }
 
+      /* --- 3. 移动端适配 --- */
       @media (max-width: 768px) {
-        #waifu, #live2d, .aplayer-lrc { display: none !important; }
+        #waifu, #live2d, #live2d-widget { 
+          display: none !important; 
+        }
       }
     </style>
   </head>
@@ -94,68 +42,17 @@
     <div id="root"></div>
 
     <script>
+      // 看板娘设置
       window.live2d_settings = {
-        modelId: 2, tips: true,
+        modelId: 2,
+        tips: true,
         widgetsConfig: { position: 'right', bottom: '0px' },     
         mobile: { show: false }      
       };
-
-      // 歌词控制逻辑
-      function initCustomLrc() {
-        const ap = document.querySelector('meting-js').aplayer;
-        const lrcContainer = document.querySelector('.aplayer-lrc');
-        
-        if (!ap || !lrcContainer) return;
-
-        // 1. 创建控制按钮 HTML
-        if (!document.querySelector('.lrc-controls')) {
-          const ctrlDiv = document.createElement('div');
-          ctrlDiv.className = 'lrc-controls';
-          ctrlDiv.innerHTML = `
-            <i class="ri-skip-back-fill lrc-ctrl-btn" onclick="document.querySelector('meting-js').aplayer.skipBack()" title="上一首"></i>
-            <i class="ri-play-pause-fill lrc-ctrl-btn" onclick="document.querySelector('meting-js').aplayer.toggle()" title="播放/暂停"></i>
-            <i class="ri-skip-forward-fill lrc-ctrl-btn" onclick="document.querySelector('meting-js').aplayer.skipForward()" title="下一首"></i>
-            <i class="ri-eye-off-fill lrc-ctrl-btn close" onclick="hideLrcSection()" title="隐藏歌词"></i>
-          `;
-          lrcContainer.prepend(ctrlDiv);
-        }
-
-        // 2. 监听播放状态：播放才显示歌词
-        ap.on('play', () => {
-          lrcContainer.style.opacity = '1';
-          lrcContainer.style.pointerEvents = 'auto';
-        });
-      }
-
-      function hideLrcSection() {
-        document.querySelector('.aplayer-lrc').style.opacity = '0';
-        document.querySelector('.aplayer-lrc').style.pointerEvents = 'none';
-      }
-
-      // 自动关闭播放器逻辑
-      document.addEventListener('click', function(e) {
-        if (e.target.closest('.aplayer-body')) {
-          const rect = e.target.getBoundingClientRect();
-          if (e.clientX > rect.right - 15 && e.clientY < rect.top + 15) {
-            document.querySelector('.aplayer-fixed').style.display = 'none';
-          }
-        }
-      });
-
-      // 等待组件加载后初始化
-      const checkExist = setInterval(() => {
-        if (document.querySelector('meting-js') && document.querySelector('meting-js').aplayer) {
-          initCustomLrc();
-          clearInterval(checkExist);
-        }
-      }, 500);
     </script>
 
-    <script src="https://cdn.jsdelivr.net/npm/aplayer/dist/APlayer.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/meting@2/dist/Meting.min.js"></script>
-    <meting-js server="netease" type="playlist" id="2195513251" fixed="true" mini="true" theme="#6366f1"></meting-js>
-
     <script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script>
+    
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
