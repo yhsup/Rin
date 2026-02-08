@@ -8,18 +8,35 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer/dist/APlayer.min.css">
     
     <style>
-      /* --- 0. 全局 macOS 鼠标样式 --- */
-      html, body {
-        /* 默认箭头 */
-        cursor: url('https://cur.cursors-4u.net/mac/mac-2/mac176.cur'), auto !important;
+      /* --- 0. 鼠标样式核心逻辑 (国内极致稳定版) --- */
+      :root {
+        /* 亮色模式：macOS 黑色光标 (Base64) */
+        --cursor-arrow: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20"><path d="M0,0 L0,17.5 L4.5,13 L8,19 L11,17.5 L7.5,11.5 L12.5,11.5 Z" fill="black" stroke="white" stroke-width="1"/></svg>'), auto;
+        --cursor-pointer: pointer;
       }
 
-      a, button, .aplayer-pic, #waifu, meting-js, [role="button"] {
-        /* 悬停手型 */
-        cursor: url('https://cur.cursors-4u.net/mac/mac-2/mac177.cur'), pointer !important;
+      /* 暗色模式或 html.dark：macOS 白色光标 (Base64) */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --cursor-arrow: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20"><path d="M0,0 L0,17.5 L4.5,13 L8,19 L11,17.5 L7.5,11.5 L12.5,11.5 Z" fill="white" stroke="black" stroke-width="1"/></svg>'), auto;
+        }
       }
 
-      /* --- 1. 音乐插件 --- */
+      /* 强制匹配你的主题切换类名 */
+      html.dark, body.dark {
+        --cursor-arrow: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20"><path d="M0,0 L0,17.5 L4.5,13 L8,19 L11,17.5 L7.5,11.5 L12.5,11.5 Z" fill="white" stroke="black" stroke-width="1"/></svg>'), auto;
+      }
+
+      *, html, body {
+        cursor: var(--cursor-arrow), auto !important;
+      }
+
+      /* 悬停状态：所有可点击元素 */
+      a, button, .aplayer-pic, #waifu, meting-js, .aplayer-icon, [role="button"], i {
+        cursor: pointer !important;
+      }
+
+      /* --- 1. 音乐插件 (保持 60px 高度等原样) --- */
       .aplayer.aplayer-fixed.aplayer-narrow .aplayer-body,
       .aplayer.aplayer-fixed.aplayer-narrow .aplayer-pic {
         border-radius: 50% !important; 
@@ -53,10 +70,9 @@
       .aplayer.aplayer-fixed .aplayer-lrc p {
         line-height: 1.6 !important;
         margin-bottom: 8px !important;
-        overflow: visible !important;
       }
 
-      /* --- 2. 强制控制看板娘大小 --- */
+      /* --- 2. 看板娘大小 --- */
       #waifu, #live2d {
         width: 180px !important;   
         height: 205px !important; 
