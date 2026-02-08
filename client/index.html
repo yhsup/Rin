@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer/dist/APlayer.min.css">
     
     <style>
-      /* --- 1. 音乐插件 --- */
+      /* --- 1. 音乐插件基础样式 --- */
       .aplayer.aplayer-fixed.aplayer-narrow .aplayer-body,
       .aplayer.aplayer-fixed.aplayer-narrow .aplayer-pic {
         border-radius: 50% !important; 
@@ -29,7 +29,7 @@
         transition: all 0.3s ease;
       }
 
-      /* 歌词区域 */
+      /* 歌词区域核心修复 */
       .aplayer.aplayer-fixed .aplayer-lrc {
         bottom: 25px !important;
         right: 25px !important;
@@ -38,34 +38,54 @@
         width: 100px !important;
         overflow: visible !important;
         height: auto !important;
+        min-height: 20px; /* 确保有高度可以触发 hover */
         white-space: normal !important;
         text-align: center !important; 
         background: none !important;
+        transition: opacity 0.3s;
       }
 
-      /* --- 新增：关闭按钮样式 --- */
-      .close-btn {
-        position: absolute;
+      /* --- 关闭按钮样式 (CSS 方案) --- */
+      /* 播放器关闭按钮 */
+      .music-close-wrap {
+        position: fixed;
+        top: 5px;
+        right: 195px;
+        z-index: 10006;
+        opacity: 0;
+        transition: opacity 0.3s;
         cursor: pointer;
         color: #999;
-        font-size: 12px;
-        z-index: 10005;
-        transition: color 0.3s;
+        font-size: 16px;
       }
-      .close-btn:hover { color: #ff4d4f; }
-
-      /* 音乐插件关闭按钮 (在圆形播放器右上角) */
-      .music-close {
-        top: 5px;
-        right: 195px; /* 对应播放器的 200px 稍微偏移 */
+      /* 悬停播放器区域显示按钮 */
+      .aplayer-body:hover + .music-close-wrap, 
+      .music-close-wrap:hover {
+        opacity: 1;
       }
 
-      /* 歌词关闭按钮 (在歌词上方) */
-      .lrc-close {
-        bottom: 85px; /* 在歌词文字上方 */
-        right: 65px;  /* 居中对齐参考 */
+      /* 歌词隐藏按钮：使用伪元素实现，无需额外 HTML */
+      .aplayer-lrc::before {
+        content: "\f2d7"; /* RemixIcon 的 eye-off 图标编码 */
+        font-family: 'remixicon' !important;
+        position: absolute;
+        top: -20px;
+        left: 50%;
+        transform: translateX(-50%);
+        cursor: pointer;
+        color: #999;
+        font-size: 14px;
+        opacity: 0;
+        transition: opacity 0.3s;
+      }
+      .aplayer-lrc:hover::before {
+        opacity: 1;
+      }
+      .aplayer-lrc::before:hover {
+        color: #ff4d4f;
       }
 
+      /* 内部容器 */
       .aplayer.aplayer-fixed .aplayer-lrc .aplayer-lrc-contents {
         width: 100px !important;
         white-space: normal !important;
@@ -96,11 +116,6 @@
         height: 205px !important; 
       }
 
-      #waifu-tips {
-        width: 100px !important;  
-        font-size: 12px !important;
-      }
-
       /* --- 3. 看板娘按钮精简 --- */
       #waifu-tool span:nth-child(1), 
       #waifu-tool span:nth-child(2),
@@ -115,7 +130,7 @@
 
       /* --- 4. 移动端适配 --- */
       @media (max-width: 768px) {
-        #waifu, #live2d, #live2d-widget, .aplayer-lrc, .close-btn { display: none !important; }
+        #waifu, #live2d, #live2d-widget, .aplayer-lrc, .music-close-wrap { display: none !important; }
         .aplayer.aplayer-fixed.aplayer-narrow .aplayer-body {
           top: auto !important;
           bottom: 25px !important;
@@ -125,8 +140,7 @@
     </style>
   </head>
   <body>
-    <div class="close-btn music-close" onclick="closeMusic()" title="关闭播放器"><i class="ri-close-circle-fill"></i></div>
-    <div class="close-btn lrc-close" id="lrcBtn" onclick="closeLrc()" title="隐藏歌词"><i class="ri-eye-off-fill"></i></div>
+    <div class="music-close-wrap" onclick="closeMusic()"><i class="ri-close-circle-fill"></i></div>
 
     <div id="root"></div>
 
@@ -138,27 +152,29 @@
         mobile: { show: false }      
       };
 
-      // 关闭逻辑
       function closeMusic() {
         const music = document.querySelector('.aplayer-fixed');
-        const btn = document.querySelector('.music-close');
+        const btn = document.querySelector('.music-close-wrap');
         if(music) music.style.display = 'none';
         if(btn) btn.style.display = 'none';
-        closeLrc(); // 播放器关了，歌词也跟着关
       }
 
-      function closeLrc() {
-        const lrc = document.querySelector('.aplayer-lrc');
-        const lrcBtn = document.getElementById('lrcBtn');
-        if(lrc) lrc.style.opacity = '0'; // 使用透明度隐藏保持布局
-        if(lrc) lrc.style.pointerEvents = 'none';
-        if(lrcBtn) lrcBtn.style.display = 'none';
-      }
+      // 点击歌词区域隐藏歌词
+      document.addEventListener('click', function(e) {
+        // 判断点击的是否是歌词区域的伪元素位置（近似判断）
+        if (e.target.classList.contains('aplayer-lrc')) {
+          const rect = e.target.getBoundingClientRect();
+          if (e.clientY < rect.top + 10) { // 如果点击的是容器顶部边缘（伪元素位置）
+            e.target.style.opacity = '0';
+            e.target.style.pointerEvents = 'none';
+          }
+        }
+      });
     </script>
 
     <script src="https://cdn.jsdelivr.net/npm/aplayer/dist/APlayer.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/meting@2/dist/Meting.min.js"></script>
-    <meting-js id="music-player" server="netease" type="playlist" id="2195513251" fixed="true" mini="true" theme="#6366f1"></meting-js>
+    <meting-js server="netease" type="playlist" id="2195513251" fixed="true" mini="true" theme="#6366f1"></meting-js>
 
     <script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script>
     <script type="module" src="/src/main.tsx"></script>
