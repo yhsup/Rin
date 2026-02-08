@@ -9,11 +9,9 @@
     <style>
       /* --- 1. 看板娘布局控制 --- */
       #waifu {
-        /* 强制固定在右下角 */
         right: 0 !important;
         bottom: 0 !important;
         left: auto !important;
-        /* 保持你要求的尺寸 */
         width: 180px !important;   
         height: 205px !important; 
         z-index: 9999 !important;
@@ -25,19 +23,33 @@
       }
 
       #waifu-tips {
-        width: 120px !important;  /* 稍微加宽提示框，防止文字太挤 */
+        width: 120px !important;  
         font-size: 12px !important;
-        right: 20px !important;   /* 提示框相对于右侧的偏移 */
+        right: 20px !important;   
       }
 
-      /* --- 2. 看板娘按钮精简 --- */
+      /* --- 2. 看板娘按钮（工具栏）左置 --- */
+      #waifu-tool {
+        /* 将工具栏定位到左侧 */
+        left: -20px !important; /* 调整此值以控制按钮与身体的间距 */
+        right: auto !important;
+        top: 50px !important;   /* 控制按钮组的垂直高度 */
+      }
+
+      /* 精简按钮：隐藏不必要的图标 */
       #waifu-tool span:nth-child(1), 
       #waifu-tool span:nth-child(2),
       #waifu-tool span:nth-child(5) {
         display: none !important;
       }
 
-      /* 确保鼠标点击能穿透或正常触发 */
+      /* 按钮纵向排列优化 */
+      #waifu-tool span {
+        display: block !important;
+        margin-bottom: 8px !important;
+        cursor: pointer !important;
+      }
+
       #live2d-widget {
         position: fixed !important;
         right: 0 !important;
@@ -62,7 +74,6 @@
       window.live2d_settings = {
         modelId: 2,
         tips: true,
-        // 将位置配置为 right: 0, bottom: 0
         widgetsConfig: { 
           position: 'right', 
           bottom: '0px',
