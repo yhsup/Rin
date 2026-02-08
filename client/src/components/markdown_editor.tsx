@@ -62,7 +62,6 @@ export function MarkdownEditor({
     }
   };
 
-  // --- 核心改进：智能样式切换逻辑 (类似 Word) ---
   const applyStyle = (type: string) => {
     const editor = editorRef.current;
     if (!editor) return;
@@ -71,8 +70,6 @@ export function MarkdownEditor({
     if (!selection || !model) return;
 
     const selectedText = model.getValueInRange(selection);
-    
-    // 定义每种样式的匹配规则
     const styleMap: Record<string, { before: string; after: string; reg: RegExp }> = {
       bold: { before: '**', after: '**', reg: /^\*\*([\s\S]*)\*\*$/ },
       italic: { before: '*', after: '*', reg: /^\*([\s\S]*)\*$/ },
@@ -86,30 +83,20 @@ export function MarkdownEditor({
     if (!style) return;
 
     let newText = "";
-    // 检测是否已经应用了该样式
     if (style.reg.test(selectedText)) {
-      // 已经存在样式，则“反选”（剥离标签）
       newText = selectedText.replace(style.reg, '$1');
     } else {
-      // 不存在样式，则包裹标签
       newText = `${style.before}${selectedText}${style.after}`;
     }
 
-    editor.executeEdits("style", [{ 
-      range: selection, 
-      text: newText, 
-      forceMoveMarkers: true 
-    }]);
+    editor.executeEdits("style", [{ range: selection, text: newText, forceMoveMarkers: true }]);
     
-    // 如果之前是选中状态，重新选中处理后的文本
     if (!selection.isEmpty()) {
-        const lineCount = newText.split('\n').length - 1;
-        const lastLineLen = newText.split('\n').pop()?.length || 0;
-        const endLineNumber = selection.startLineNumber + lineCount;
-        const endColumn = lineCount === 0 ? selection.startColumn + newText.length : lastLineLen + 1;
+        const lines = newText.split('\n');
+        const endLineNumber = selection.startLineNumber + lines.length - 1;
+        const endColumn = lines.length === 1 ? selection.startColumn + newText.length : lines[lines.length-1].length + 1;
         editor.setSelection(new Selection(selection.startLineNumber, selection.startColumn, endLineNumber, endColumn));
     }
-    
     editor.focus();
   };
 
@@ -122,9 +109,7 @@ export function MarkdownEditor({
     if (isNaN(rows) || isNaN(cols)) return;
     let tableMd = "| " + Array(cols).fill("Header").join(" | ") + " |\n";
     tableMd += "| " + Array(cols).fill("---").join(" | ") + " |\n";
-    for (let i = 0; i < rows; i++) {
-      tableMd += "| " + Array(cols).fill("Content").join(" | ") + " |\n";
-    }
+    for (let i = 0; i < rows; i++) { tableMd += "| " + Array(cols).fill("Content").join(" | ") + " |\n"; }
     const selection = editor.getSelection();
     if (selection) {
       editor.executeEdits("table", [{ range: selection, text: tableMd.trim(), forceMoveMarkers: true }]);
@@ -173,8 +158,37 @@ export function MarkdownEditor({
     );
   }
 
+  // --- 增强：双击选中逻辑 ---
   const handleEditorMount = (editor: editor.IStandaloneCodeEditor) => {
     editorRef.current = editor;
+    
+    // 监听鼠标双击事件
+    editor.onMouseDown((e) => {
+      // 只有双击（detail 为 2）才触发自定义行选中
+      if (e.event.detail === 2) {
+        const position = e.target.position;
+        if (!position) return;
+
+        // 如果双击的是行首（Monaco 的 column 为 1）
+        if (position.column === 1) {
+          const model = editor.getModel();
+          if (model) {
+            const lineContent = model.getLineContent(position.lineNumber);
+            // 选中整行（从 1 列到行末）
+            editor.setSelection(new Selection(
+              position.lineNumber, 
+              1, 
+              position.lineNumber, 
+              lineContent.length + 1
+            ));
+            // 阻止默认双击事件，防止干扰
+            e.event.preventDefault();
+            e.event.stopPropagation();
+          }
+        }
+      }
+    });
+
     const inputElement = editor.getDomNode()?.querySelector('textarea');
     if (inputElement) {
       inputElement.addEventListener('compositionstart', () => { isComposingRef.current = true; });
@@ -224,7 +238,18 @@ export function MarkdownEditor({
 
           <div className="border rounded-xl overflow-hidden dark:border-zinc-800 bg-white dark:bg-[#1e1e1e]" onPaste={handlePaste}>
             <Editor onMount={handleEditorMount} height={height} defaultLanguage="markdown" value={content} theme={colorMode === "dark" ? "vs-dark" : "light"}
-              options={{ wordWrap: "on", fontFamily: currentFont, fontLigatures: true, fontSize: 14, minimap: { enabled: false }, automaticLayout: true, lineNumbers: "on", padding: { top: 10 } }} 
+              options={{ 
+                wordWrap: "on", 
+                fontFamily: currentFont, 
+                fontLigatures: true, 
+                fontSize: 14, 
+                minimap: { enabled: false }, 
+                automaticLayout: true, 
+                lineNumbers: "on", 
+                padding: { top: 10 },
+                // 确保点击边距也能触发选中
+                selectOnLineNumbers: true
+              }} 
             />
           </div>
         </div>
