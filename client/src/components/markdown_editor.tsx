@@ -267,51 +267,59 @@ export function MarkdownEditor({
   try {
     const res = await fetch(newPackUrl);
     if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+    
     const data = (await res.json()) as Record<string, any>;
-
     const baseUrl = newPackUrl.substring(0, newPackUrl.lastIndexOf('/') + 1);
     let newGroups: StickerGroup[] = [];
 
-    // 遍历 JSON 的所有第一层 Key
+    // --- 核心逻辑：智能识别并解析 ---
     Object.keys(data).forEach(key => {
       const value = data[key];
-      
-      // 情况 1: Twikoo 风格（对象，包含 container 数组）
+
+      // 1. Twikoo / OwO 格式 (值是包含 container 的对象)
       if (value && typeof value === 'object' && !Array.isArray(value) && value.container) {
         newGroups.push({
           name: key,
           stickers: (value.container as any[]).map(item => ({
             label: item.text || item.label || key,
-            url: (item.icon || item.url || "").startsWith('http') ? (item.icon || item.url) : `${baseUrl}${item.icon || item.url}`
+            url: item.icon?.startsWith('http') ? item.icon : `${baseUrl}${item.icon || ''}`
           }))
         });
       }
-      // 情况 2: 简单数组风格（你那个链接的风格：{"ID": ["1.png", "2.png"]})
+      
+      // 2. 特殊 jsdelivr 或 简单数组格式 (你提供的那个 3630647554.json 走这里)
       else if (Array.isArray(value)) {
+        // 针对你那个特定包的路径纠偏
+        const subPath = newPackUrl.includes('3630647554') ? 'emoji/BZ/' : '';
+        
         newGroups.push({
-          name: `分组-${key}`,
+          name: key === '3630647554' ? '泡泡表情' : `分组-${key}`,
           stickers: value.map((img: any) => {
-            const imgUrl = typeof img === 'string' ? img : (img.icon || img.url || "");
+            const rawUrl = typeof img === 'string' ? img : (img.icon || img.url || "");
             return {
-              label: (typeof img === 'object' && img.text) ? img.text : imgUrl.split('/').pop()?.split('.')[0] || key,
-              url: imgUrl.startsWith('http') ? imgUrl : `${baseUrl}${imgUrl}`
+              label: rawUrl.split('/').pop()?.split('.')[0] || key,
+              url: rawUrl.startsWith('http') ? rawUrl : `${baseUrl}${subPath}${rawUrl}`
             };
           })
         });
       }
-      // 情况 3: Valine 风格（平铺字典：{"名": "url"})
-      else if (typeof value === 'string' && value.startsWith('http')) {
-        // 如果第一层全是字符串，我们将它们合并为一个名为 "导入" 的分组
-        let importGroup = newGroups.find(g => g.name === "自动导入");
-        if (!importGroup) {
-          importGroup = { name: "自动导入", stickers: [] };
-          newGroups.push(importGroup);
+
+      // 3. Valine 格式 (整个 JSON 都是平铺的键值对)
+      // 如果发现第一层的值直接就是字符串(URL)，则归为 Valine 导入
+      else if (typeof value === 'string' && (value.startsWith('http') || value.includes('.'))) {
+        let valineGroup = newGroups.find(g => g.name === "Valine 导入");
+        if (!valineGroup) {
+          valineGroup = { name: "Valine 导入", stickers: [] };
+          newGroups.push(valineGroup);
         }
-        importGroup.stickers.push({ label: key, url: value });
+        valineGroup.stickers.push({
+          label: key,
+          url: value.startsWith('http') ? value : `${baseUrl}${value}`
+        });
       }
     });
 
-    // 最后过滤掉空的分组
+    // --- 最终处理 ---
     const finalValidGroups = newGroups.filter(g => g.stickers.length > 0);
 
     if (finalValidGroups.length > 0) {
@@ -325,8 +333,7 @@ export function MarkdownEditor({
       setShowAddInput(false);
       alert(`成功导入 ${finalValidGroups.length} 个表情分组！`);
     } else {
-      console.log("解析数据样本:", data); // 调试用
-      throw new Error("无法从该 URL 提取到有效的表情数据");
+      throw new Error("未能识别有效的表情包格式");
     }
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
