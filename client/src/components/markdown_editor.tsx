@@ -38,8 +38,6 @@ export function MarkdownEditor({
   const [preview, setPreview] = useState<'edit' | 'preview' | 'comparison'>('edit');
   const [activeStyles, setActiveStyles] = useState<Record<string, boolean>>({});
   const [bubblePos, setBubblePos] = useState<{ x: number, y: number } | null>(null);
-
-  // Emoji 状态 (已移除 Sticker 相关状态)
   const [showEmojiPanel, setShowEmojiPanel] = useState(false);
 
   // 公式模板库
@@ -56,7 +54,6 @@ export function MarkdownEditor({
   /* ---------------- 初始化逻辑 ---------------- */
 
   useEffect(() => {
-    // 点击外部关闭 Emoji 面板
     const handleClickOutside = (e: MouseEvent) => {
       if (emojiButtonRef.current && !emojiButtonRef.current.contains(e.target as Node)) {
         setShowEmojiPanel(false);
@@ -90,6 +87,7 @@ export function MarkdownEditor({
       strikethrough: isWrapped('~~'),
       sup: isWrapped('<sup>', '</sup>'),
       sub: isWrapped('<sub>', '</sub>'),
+      code: isWrapped('```\n', '\n```') || isWrapped('`'),
     });
   }, []);
 
@@ -107,6 +105,7 @@ export function MarkdownEditor({
       strikethrough: { tag: '~~', reg: /~~/g },
       sup: { tag: '<sup>', end: '</sup>', reg: /<\/?sup>/g },
       sub: { tag: '<sub>', end: '</sub>', reg: /<\/?sub>/g },
+      code: { tag: '```\n', end: '\n```', reg: /```/g },
       table: { tag: "\n| 标题1 | 标题2 |\n| --- | --- |\n| 单元格1 | 单元格2 |\n" }
     };
 
@@ -118,6 +117,7 @@ export function MarkdownEditor({
       const isRemoving = selectedText.includes(s.tag);
       const newText = isRemoving ? selectedText.replace(s.reg!, '') : `${s.tag}${selectedText}${endTag}`;
       editorInst.executeEdits("style", [{ range: selection, text: newText, forceMoveMarkers: true }]);
+      
       const delta = newText.length - selectedText.length;
       editorInst.setSelection(new Selection(selection.startLineNumber, selection.startColumn, selection.endLineNumber, selection.endColumn + delta));
     }
@@ -182,15 +182,11 @@ export function MarkdownEditor({
     editorInst.addCommand(KeyMod.CtrlCmd | KeyCode.KeyI, () => applyStyle('italic'));
     editorInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE, () => insertMathTemplate("$公式$", "公式"));
 
-    // --- 智能按键处理 (自动闭合与包裹) ---
     editorInst.onKeyDown((e) => {
       const sel = editorInst.getSelection();
-      
-      // 1. 未选中文字时：处理 < 自动闭合
       if (!sel || sel.isEmpty()) {
         if (e.browserEvent.key === '<') {
           setTimeout(() => {
-            // 插入 > 并将光标移回中间
             editorInst.executeEdits("close", [{ range: editorInst.getSelection()!, text: ">", forceMoveMarkers: false }]);
             const pos = editorInst.getPosition();
             if (pos) editorInst.setPosition({ lineNumber: pos.lineNumber, column: pos.column - 1 });
@@ -199,7 +195,6 @@ export function MarkdownEditor({
         return;
       }
       
-      // 2. 选中文字时：处理 $ 和 < 的包裹
       if (e.browserEvent.key === '$' || e.browserEvent.key === '<') {
         e.preventDefault();
         const endChar = e.browserEvent.key === '<' ? '>' : '$';
@@ -240,49 +235,36 @@ export function MarkdownEditor({
         )}
       </div>
 
+      {/* --- 主工具栏 --- */}
       <div className={`flex flex-wrap items-center gap-1 p-2 bg-gray-50 dark:bg-zinc-900 border dark:border-zinc-800 rounded-xl ${preview === 'preview' ? 'hidden' : ''}`}>
-        {/* 图片上传 */}
         <label className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded text-theme cursor-pointer" title="上传图片">
           <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files?.[0])} />
           <i className="ri-image-add-line" />
         </label>
         
-        {/* Emoji 按钮 (移除 Sticker 逻辑) */}
         <div className="relative" ref={emojiButtonRef}>
           <button onClick={() => setShowEmojiPanel(!showEmojiPanel)} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded text-theme">
             <i className="ri-emotion-happy-line text-lg" />
           </button>
           {showEmojiPanel && (
             <div className="absolute top-full left-0 mt-2 z-50 bg-white dark:bg-zinc-900 border dark:border-zinc-700 rounded-xl shadow-2xl w-[350px] overflow-hidden">
-                {/* 直接显示 EmojiPicker，移除 Tabs */}
-                <EmojiPicker 
-                    onEmojiClick={(d) => { 
-                        editorRef.current?.executeEdits("", [{range: editorRef.current.getSelection()!, text: d.emoji}]); 
-                        editorRef.current?.focus(); 
-                        setShowEmojiPanel(false); // 选完自动关闭
-                    }} 
-                    theme={colorMode === 'dark' ? Theme.DARK : Theme.LIGHT} 
-                    width="100%" 
-                    height="350px" 
-                />
+                <EmojiPicker onEmojiClick={(d) => { editorRef.current?.executeEdits("", [{range: editorRef.current.getSelection()!, text: d.emoji}]); editorRef.current?.focus(); setShowEmojiPanel(false); }} theme={colorMode === 'dark' ? Theme.DARK : Theme.LIGHT} width="100%" height="350px" />
             </div>
           )}
         </div>
 
         <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
-        
-        {/* 格式化工具栏 */}
         <ToolbarButton active={activeStyles.bold} onClick={() => applyStyle('bold')} icon="ri-bold" />
         <ToolbarButton active={activeStyles.italic} onClick={() => applyStyle('italic')} icon="ri-italic" />
         <ToolbarButton active={activeStyles.underline} onClick={() => applyStyle('underline')} icon="ri-underline" />
         <ToolbarButton active={activeStyles.strikethrough} onClick={() => applyStyle('strikethrough')} icon="ri-strikethrough" />
         <ToolbarButton active={activeStyles.sup} onClick={() => applyStyle('sup')} icon="ri-superscript" />
         <ToolbarButton active={activeStyles.sub} onClick={() => applyStyle('sub')} icon="ri-subscript" />
+        <ToolbarButton active={activeStyles.code} onClick={() => applyStyle('code')} icon="ri-code-s-slash-line" title="插入代码块" />
         <ToolbarButton onClick={() => applyStyle('table')} icon="ri-table-2" title="插入表格" />
 
         <div className="flex-grow" />
         
-        {/* 公式菜单 */}
         <div className="relative group py-1 px-1">
           <button className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded flex items-center gap-1 text-theme font-bold">
             <i className="ri-functions" />
@@ -309,12 +291,20 @@ export function MarkdownEditor({
         </div>
       </div>
 
+      {/* --- 增强版悬浮气泡菜单 --- */}
       {bubblePos && (
-        <div className="fixed z-[100] flex bg-white dark:bg-zinc-800 shadow-2xl p-1.5 rounded-xl border dark:border-zinc-700 animate-in zoom-in-95" style={{ left: bubblePos.x, top: bubblePos.y }}>
+        <div className="fixed z-[100] flex items-center bg-white dark:bg-zinc-800 shadow-2xl p-1.5 rounded-xl border dark:border-zinc-700 animate-in zoom-in-95 gap-0.5" style={{ left: bubblePos.x, top: bubblePos.y }}>
           <ToolbarButton active={activeStyles.bold} onClick={() => applyStyle('bold')} icon="ri-bold" sm />
           <ToolbarButton active={activeStyles.italic} onClick={() => applyStyle('italic')} icon="ri-italic" sm />
           <ToolbarButton active={activeStyles.underline} onClick={() => applyStyle('underline')} icon="ri-underline" sm />
-          <button onClick={() => insertMathTemplate("$公式$", "公式")} className="p-1 text-theme hover:bg-gray-100 dark:hover:bg-zinc-700 rounded"><i className="ri-functions text-sm" /></button>
+          <ToolbarButton active={activeStyles.strikethrough} onClick={() => applyStyle('strikethrough')} icon="ri-strikethrough" sm />
+          <ToolbarButton active={activeStyles.sup} onClick={() => applyStyle('sup')} icon="ri-superscript" sm />
+          <ToolbarButton active={activeStyles.sub} onClick={() => applyStyle('sub')} icon="ri-subscript" sm />
+          <div className="w-[1px] h-3 bg-gray-200 dark:bg-zinc-700 mx-0.5" />
+          <ToolbarButton active={activeStyles.code} onClick={() => applyStyle('code')} icon="ri-code-s-slash-line" sm title="代码块" />
+          <button onClick={() => insertMathTemplate("$公式$", "公式")} className="p-1 text-theme hover:bg-gray-100 dark:hover:bg-zinc-700 rounded" title="数学公式">
+            <i className="ri-functions text-sm" />
+          </button>
         </div>
       )}
     </div>
