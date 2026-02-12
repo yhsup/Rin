@@ -267,14 +267,15 @@ export function MarkdownEditor({
   try {
     const res = await fetch(newPackUrl);
     if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-    
-    // 关键修复：将 data 定义为 Record<string, any> 以便安全访问属性
     const data = (await res.json()) as Record<string, any>;
 
     let newGroups: StickerGroup[] = [];
     const keys = Object.keys(data);
+    
+    // 获取基础路径，用于补全相对地址
+    const baseUrl = newPackUrl.substring(0, newPackUrl.lastIndexOf('/') + 1);
 
-    // --- 逻辑 A: 适配 Valine 风格 (平铺字典: {"😀": "url", ...}) ---
+    // --- 逻辑 A: 适配 Valine 风格 ---
     const isValineStyle = keys.length > 0 && keys.every(k => typeof data[k] === 'string');
 
     if (isValineStyle) {
@@ -282,27 +283,29 @@ export function MarkdownEditor({
         name: "Valine 导入",
         stickers: keys.map(key => ({
           label: key,
-          url: data[key] as string
+          url: (data[key] as string).startsWith('http') ? data[key] : `${baseUrl}${data[key]}`
         }))
       }];
     }
     // --- 逻辑 B: 适配 Twikoo / OwO 格式 ---
-    else if (keys.length > 0 && (Array.isArray(data[keys[0]]) || (data[keys[0]] && typeof data[keys[0]] === 'object' && data[keys[0]].container))) {
+    else if (keys.length > 0 && (Array.isArray(data[keys[0]]) || (data[keys[0]] && typeof data[keys[0]] === 'object'))) {
       newGroups = keys.map(key => {
         const groupData = data[key];
         const items = Array.isArray(groupData) ? groupData : (groupData.container || []);
         return {
           name: key,
-          stickers: items.map((item: any) => ({
-            label: typeof item === 'string' ? key : (item.text || item.label || key),
-            url: typeof item === 'string' ? item : (item.icon || item.url || '')
-          }))
+          stickers: items.map((item: any) => {
+            const rawUrl = item.icon || item.url || (typeof item === 'string' ? item : '');
+            return {
+              label: item.text || item.label || key,
+              url: rawUrl.startsWith('http') ? rawUrl : `${baseUrl}${rawUrl}`
+            };
+          })
         };
       });
     }
-    // --- 逻辑 C: 适配 jsdelivr 简单数组格式 ---
+    // --- 逻辑 C: 适配你的 jsdelivr 链接格式 ---
     else if (Array.isArray(data[keys[0]])) {
-      const baseUrl = newPackUrl.substring(0, newPackUrl.lastIndexOf('/') + 1);
       newGroups = [{
         name: `导入-${keys[0]}`,
         stickers: (data[keys[0]] as string[]).map((img: string) => ({
@@ -311,17 +314,11 @@ export function MarkdownEditor({
         }))
       }];
     }
-    // --- 逻辑 D: 标准格式 ---
-    else if (data.name && Array.isArray(data.stickers)) {
-      newGroups = [data as unknown as StickerGroup];
-    }
 
-    if (newGroups.length > 0) {
-      const validGroups = newGroups.map(g => ({
-        ...g,
-        stickers: g.stickers.filter(s => s.url && typeof s.url === 'string' && s.url.startsWith('http'))
-      })).filter(g => g.stickers.length > 0);
+    // 最终过滤：只要 url 存在即可
+    const validGroups = newGroups.filter(g => g.stickers.length > 0 && g.stickers.some(s => s.url));
 
+    if (validGroups.length > 0) {
       const customPacks = stickerGroups.filter(g => g.name !== '默认表情');
       const finalPacks = [...customPacks, ...validGroups];
       
@@ -332,7 +329,7 @@ export function MarkdownEditor({
       setShowAddInput(false);
       alert(`成功导入 ${validGroups.length} 个分组！`);
     } else {
-      throw new Error("未能识别任何已知的表情包格式");
+      throw new Error("识别到了格式，但未发现有效的图片链接");
     }
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
