@@ -266,15 +266,31 @@ export function MarkdownEditor({
     setIsAddingPack(true);
     try {
       const res = await fetch(newPackUrl);
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      
       const data = (await res.json()) as StickerGroup;
-      if (data.name && data.stickers) {
+      
+      // 验证数据格式
+      if (data && typeof data.name === 'string' && Array.isArray(data.stickers)) {
         const customPacks = stickerGroups.filter(g => g.name !== '默认表情');
-        setStickerGroups([...DEFAULT_STICKERS, ...customPacks, data]);
-        localStorage.setItem('custom_stickers', JSON.stringify([...customPacks, data]));
+        const updated = [...customPacks, data];
+        
+        setStickerGroups([...DEFAULT_STICKERS, ...updated]);
+        localStorage.setItem('custom_stickers', JSON.stringify(updated));
+        
         setNewPackUrl("");
         setShowAddInput(false);
+      } else {
+        throw new Error("JSON 格式不正确，缺少 name 或 stickers 字段");
       }
-    } catch (e) { alert("加载失败: " + e.message); } finally { setIsAddingPack(false); }
+    } catch (err) {
+      // 修复 TS18046: 将 unknown 类型转换为 Error 类型
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      alert("加载失败: " + errorMessage);
+      console.error("Sticker load error:", err);
+    } finally {
+      setIsAddingPack(false);
+    }
   };
 
   return (
