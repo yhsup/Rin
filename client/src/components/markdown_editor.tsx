@@ -3,8 +3,8 @@ import { editor, Selection, KeyMod, KeyCode } from 'monaco-editor';
 import { useRef, useState, useCallback, useEffect } from "react";
 import Loading from 'react-loading';
 import { useTranslation } from "react-i18next";
-import { useColorMode } from "../utils/darkModeUtils"; 
-import { Markdown } from "./markdown"; 
+import { useColorMode } from "../utils/darkModeUtils";
+import { Markdown } from "./markdown";
 import { client } from "../main";
 import { headersWithAuth } from "../utils/auth";
 import EmojiPicker, { Theme } from 'emoji-picker-react';
@@ -14,36 +14,12 @@ loader.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.43.0/
 
 /* ---------------- 类型定义 ---------------- */
 
-interface Sticker {
-  label: string;
-  url: string;
-}
-
-interface StickerGroup {
-  name: string;
-  stickers: Sticker[];
-}
-
 interface MarkdownEditorProps {
   content: string;
   setContent: (content: string) => void;
   placeholder?: string;
   height?: string;
 }
-
-/* ---------------- 默认数据配置 ---------------- */
-
-const DEFAULT_STICKERS: StickerGroup[] = [
-  {
-    name: "默认表情",
-    stickers: [
-      { label: "Doge", url: "https://img.icons8.com/color/96/doge.png" },
-      { label: "Cat", url: "https://img.icons8.com/color/96/bongo-cat.png" },
-      { label: "Pepe", url: "https://img.icons8.com/color/96/pepe.png" },
-      { label: "Ok", url: "https://img.icons8.com/fluency/96/ok-hand.png" },
-    ]
-  }
-];
 
 export function MarkdownEditor({
   content,
@@ -63,13 +39,8 @@ export function MarkdownEditor({
   const [activeStyles, setActiveStyles] = useState<Record<string, boolean>>({});
   const [bubblePos, setBubblePos] = useState<{ x: number, y: number } | null>(null);
 
-  // Emoji & Stickers 状态
+  // Emoji 状态 (已移除 Sticker 相关状态)
   const [showEmojiPanel, setShowEmojiPanel] = useState(false);
-  const [activeEmojiTab, setActiveEmojiTab] = useState<'emoji' | 'sticker'>('emoji');
-  const [stickerGroups, setStickerGroups] = useState<StickerGroup[]>(DEFAULT_STICKERS);
-  const [newPackUrl, setNewPackUrl] = useState("");
-  const [isAddingPack, setIsAddingPack] = useState(false);
-  const [showAddInput, setShowAddInput] = useState(false);
 
   // 公式模板库
   const mathSymbols = [
@@ -85,14 +56,7 @@ export function MarkdownEditor({
   /* ---------------- 初始化逻辑 ---------------- */
 
   useEffect(() => {
-    const saved = localStorage.getItem('custom_stickers');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setStickerGroups([...DEFAULT_STICKERS, ...parsed]);
-      } catch (e) { console.error(e); }
-    }
-    
+    // 点击外部关闭 Emoji 面板
     const handleClickOutside = (e: MouseEvent) => {
       if (emojiButtonRef.current && !emojiButtonRef.current.contains(e.target as Node)) {
         setShowEmojiPanel(false);
@@ -218,11 +182,15 @@ export function MarkdownEditor({
     editorInst.addCommand(KeyMod.CtrlCmd | KeyCode.KeyI, () => applyStyle('italic'));
     editorInst.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE, () => insertMathTemplate("$公式$", "公式"));
 
+    // --- 智能按键处理 (自动闭合与包裹) ---
     editorInst.onKeyDown((e) => {
       const sel = editorInst.getSelection();
+      
+      // 1. 未选中文字时：处理 < 自动闭合
       if (!sel || sel.isEmpty()) {
         if (e.browserEvent.key === '<') {
           setTimeout(() => {
+            // 插入 > 并将光标移回中间
             editorInst.executeEdits("close", [{ range: editorInst.getSelection()!, text: ">", forceMoveMarkers: false }]);
             const pos = editorInst.getPosition();
             if (pos) editorInst.setPosition({ lineNumber: pos.lineNumber, column: pos.column - 1 });
@@ -231,6 +199,7 @@ export function MarkdownEditor({
         return;
       }
       
+      // 2. 选中文字时：处理 $ 和 < 的包裹
       if (e.browserEvent.key === '$' || e.browserEvent.key === '<') {
         e.preventDefault();
         const endChar = e.browserEvent.key === '<' ? '>' : '$';
@@ -250,22 +219,6 @@ export function MarkdownEditor({
     });
 
     editorInst.onDidChangeModelContent(() => { if (!isComposingRef.current) setContent(editorInst.getValue()); });
-  };
-
-  const addStickerPackByUrl = async () => {
-    if (!newPackUrl) return;
-    setIsAddingPack(true);
-    try {
-      const res = await fetch(newPackUrl);
-      const data = (await res.json()) as StickerGroup;
-      if (data.name && data.stickers) {
-        const customPacks = stickerGroups.filter(g => g.name !== '默认表情');
-        setStickerGroups([...DEFAULT_STICKERS, ...customPacks, data]);
-        localStorage.setItem('custom_stickers', JSON.stringify([...customPacks, data]));
-        setNewPackUrl("");
-        setShowAddInput(false);
-      }
-    } catch (e) { alert("加载失败"); } finally { setIsAddingPack(false); }
   };
 
   return (
@@ -288,58 +241,37 @@ export function MarkdownEditor({
       </div>
 
       <div className={`flex flex-wrap items-center gap-1 p-2 bg-gray-50 dark:bg-zinc-900 border dark:border-zinc-800 rounded-xl ${preview === 'preview' ? 'hidden' : ''}`}>
+        {/* 图片上传 */}
         <label className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded text-theme cursor-pointer" title="上传图片">
           <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files?.[0])} />
           <i className="ri-image-add-line" />
         </label>
         
+        {/* Emoji 按钮 (移除 Sticker 逻辑) */}
         <div className="relative" ref={emojiButtonRef}>
           <button onClick={() => setShowEmojiPanel(!showEmojiPanel)} className="p-1.5 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded text-theme">
             <i className="ri-emotion-happy-line text-lg" />
           </button>
           {showEmojiPanel && (
-            <div className="absolute top-full left-0 mt-2 z-50 bg-white dark:bg-zinc-900 border dark:border-zinc-700 rounded-xl shadow-2xl w-[350px] overflow-hidden flex flex-col">
-              <div className="flex border-b dark:border-zinc-700 bg-gray-50 dark:bg-zinc-800">
-                <button onClick={() => setActiveEmojiTab('emoji')} className={`flex-1 py-2 text-xs ${activeEmojiTab === 'emoji' ? 'border-b-2 border-theme text-theme' : ''}`}>Emoji</button>
-                <button onClick={() => setActiveEmojiTab('sticker')} className={`flex-1 py-2 text-xs ${activeEmojiTab === 'sticker' ? 'border-b-2 border-theme text-theme' : ''}`}>表情包</button>
-              </div>
-              <div className="h-[350px] overflow-hidden">
-                {activeEmojiTab === 'emoji' ? (
-                  <EmojiPicker onEmojiClick={(d) => { editorRef.current?.executeEdits("", [{range: editorRef.current.getSelection()!, text: d.emoji}]); editorRef.current?.focus(); }} theme={colorMode === 'dark' ? Theme.DARK : Theme.LIGHT} width="100%" height="350px" />
-                ) : (
-                  <div className="h-full flex flex-col">
-                    <div className="flex-1 overflow-y-auto p-3">
-                      {stickerGroups.map(group => (
-                        <div key={group.name} className="mb-4">
-                          <p className="text-[10px] text-gray-400 font-bold mb-2 uppercase">{group.name}</p>
-                          <div className="grid grid-cols-4 gap-2">
-                            {group.stickers.map((s, idx) => (
-                              <button key={idx} onClick={() => { editorRef.current?.executeEdits("", [{range: editorRef.current.getSelection()!, text: `![${s.label}](${s.url})`}]); setShowEmojiPanel(false); }} className="p-1 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded">
-                                <img src={s.url} alt={s.label} className="w-full aspect-square object-contain" />
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="p-2 border-t dark:border-zinc-700">
-                      {!showAddInput ? (
-                        <button onClick={() => setShowAddInput(true)} className="w-full py-1 text-xs border-dashed border rounded border-gray-300 text-gray-400">+ 导入表情包</button>
-                      ) : (
-                        <div className="flex gap-1">
-                          <input value={newPackUrl} onChange={e => setNewPackUrl(e.target.value)} placeholder="URL..." className="flex-1 text-xs p-1 rounded border dark:bg-zinc-800" />
-                          <button onClick={addStickerPackByUrl} className="px-2 bg-theme text-white rounded text-xs">{isAddingPack ? '...' : 'OK'}</button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
+            <div className="absolute top-full left-0 mt-2 z-50 bg-white dark:bg-zinc-900 border dark:border-zinc-700 rounded-xl shadow-2xl w-[350px] overflow-hidden">
+                {/* 直接显示 EmojiPicker，移除 Tabs */}
+                <EmojiPicker 
+                    onEmojiClick={(d) => { 
+                        editorRef.current?.executeEdits("", [{range: editorRef.current.getSelection()!, text: d.emoji}]); 
+                        editorRef.current?.focus(); 
+                        setShowEmojiPanel(false); // 选完自动关闭
+                    }} 
+                    theme={colorMode === 'dark' ? Theme.DARK : Theme.LIGHT} 
+                    width="100%" 
+                    height="350px" 
+                />
             </div>
           )}
         </div>
 
         <div className="w-[1px] h-4 bg-gray-300 dark:bg-zinc-700 mx-1" />
+        
+        {/* 格式化工具栏 */}
         <ToolbarButton active={activeStyles.bold} onClick={() => applyStyle('bold')} icon="ri-bold" />
         <ToolbarButton active={activeStyles.italic} onClick={() => applyStyle('italic')} icon="ri-italic" />
         <ToolbarButton active={activeStyles.underline} onClick={() => applyStyle('underline')} icon="ri-underline" />
