@@ -269,67 +269,64 @@ export function MarkdownEditor({
     if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
     const data = (await res.json()) as Record<string, any>;
 
-    let newGroups: StickerGroup[] = [];
-    const keys = Object.keys(data);
-    
-    // 获取基础路径，用于补全相对地址
     const baseUrl = newPackUrl.substring(0, newPackUrl.lastIndexOf('/') + 1);
+    let newGroups: StickerGroup[] = [];
 
-    // --- 逻辑 A: 适配 Valine 风格 ---
-    const isValineStyle = keys.length > 0 && keys.every(k => typeof data[k] === 'string');
-
-    if (isValineStyle) {
-      newGroups = [{
-        name: "Valine 导入",
-        stickers: keys.map(key => ({
-          label: key,
-          url: (data[key] as string).startsWith('http') ? data[key] : `${baseUrl}${data[key]}`
-        }))
-      }];
-    }
-    // --- 逻辑 B: 适配 Twikoo / OwO 格式 ---
-    else if (keys.length > 0 && (Array.isArray(data[keys[0]]) || (data[keys[0]] && typeof data[keys[0]] === 'object'))) {
-      newGroups = keys.map(key => {
-        const groupData = data[key];
-        const items = Array.isArray(groupData) ? groupData : (groupData.container || []);
-        return {
+    // 遍历 JSON 的所有第一层 Key
+    Object.keys(data).forEach(key => {
+      const value = data[key];
+      
+      // 情况 1: Twikoo 风格（对象，包含 container 数组）
+      if (value && typeof value === 'object' && !Array.isArray(value) && value.container) {
+        newGroups.push({
           name: key,
-          stickers: items.map((item: any) => {
-            const rawUrl = item.icon || item.url || (typeof item === 'string' ? item : '');
+          stickers: (value.container as any[]).map(item => ({
+            label: item.text || item.label || key,
+            url: (item.icon || item.url || "").startsWith('http') ? (item.icon || item.url) : `${baseUrl}${item.icon || item.url}`
+          }))
+        });
+      }
+      // 情况 2: 简单数组风格（你那个链接的风格：{"ID": ["1.png", "2.png"]})
+      else if (Array.isArray(value)) {
+        newGroups.push({
+          name: `分组-${key}`,
+          stickers: value.map((img: any) => {
+            const imgUrl = typeof img === 'string' ? img : (img.icon || img.url || "");
             return {
-              label: item.text || item.label || key,
-              url: rawUrl.startsWith('http') ? rawUrl : `${baseUrl}${rawUrl}`
+              label: (typeof img === 'object' && img.text) ? img.text : imgUrl.split('/').pop()?.split('.')[0] || key,
+              url: imgUrl.startsWith('http') ? imgUrl : `${baseUrl}${imgUrl}`
             };
           })
-        };
-      });
-    }
-    // --- 逻辑 C: 适配你的 jsdelivr 链接格式 ---
-    else if (Array.isArray(data[keys[0]])) {
-      newGroups = [{
-        name: `导入-${keys[0]}`,
-        stickers: (data[keys[0]] as string[]).map((img: string) => ({
-          label: img.split('.')[0],
-          url: img.startsWith('http') ? img : `${baseUrl}${img}`
-        }))
-      }];
-    }
+        });
+      }
+      // 情况 3: Valine 风格（平铺字典：{"名": "url"})
+      else if (typeof value === 'string' && value.startsWith('http')) {
+        // 如果第一层全是字符串，我们将它们合并为一个名为 "导入" 的分组
+        let importGroup = newGroups.find(g => g.name === "自动导入");
+        if (!importGroup) {
+          importGroup = { name: "自动导入", stickers: [] };
+          newGroups.push(importGroup);
+        }
+        importGroup.stickers.push({ label: key, url: value });
+      }
+    });
 
-    // 最终过滤：只要 url 存在即可
-    const validGroups = newGroups.filter(g => g.stickers.length > 0 && g.stickers.some(s => s.url));
+    // 最后过滤掉空的分组
+    const finalValidGroups = newGroups.filter(g => g.stickers.length > 0);
 
-    if (validGroups.length > 0) {
+    if (finalValidGroups.length > 0) {
       const customPacks = stickerGroups.filter(g => g.name !== '默认表情');
-      const finalPacks = [...customPacks, ...validGroups];
+      const updated = [...customPacks, ...finalValidGroups];
       
-      setStickerGroups([...DEFAULT_STICKERS, ...finalPacks]);
-      localStorage.setItem('custom_stickers', JSON.stringify(finalPacks));
+      setStickerGroups([...DEFAULT_STICKERS, ...updated]);
+      localStorage.setItem('custom_stickers', JSON.stringify(updated));
       
       setNewPackUrl("");
       setShowAddInput(false);
-      alert(`成功导入 ${validGroups.length} 个分组！`);
+      alert(`成功导入 ${finalValidGroups.length} 个表情分组！`);
     } else {
-      throw new Error("识别到了格式，但未发现有效的图片链接");
+      console.log("解析数据样本:", data); // 调试用
+      throw new Error("无法从该 URL 提取到有效的表情数据");
     }
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
