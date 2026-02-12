@@ -267,60 +267,72 @@ export function MarkdownEditor({
   try {
     const res = await fetch(newPackUrl);
     if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-    const data = await res.json();
+    
+    // 关键修复：将 data 定义为 Record<string, any> 以便安全访问属性
+    const data = (await res.json()) as Record<string, any>;
 
     let newGroups: StickerGroup[] = [];
-
-    // --- 逻辑 A: 适配 Twikoo / OwO 格式 ---
-    // 结构通常是: { "分组名": { "type": "image", "container": [ { "icon": "url", "text": "标签" } ] } }
-    // 或者简单结构: { "分组名": [ { "icon": "url", "text": "标签" } ] }
     const keys = Object.keys(data);
-    const isTwikoo = keys.length > 0 && (Array.isArray(data[keys[0]]) || data[keys[0]].container);
 
-    if (isTwikoo) {
+    // --- 逻辑 A: 适配 Valine 风格 (平铺字典: {"😀": "url", ...}) ---
+    const isValineStyle = keys.length > 0 && keys.every(k => typeof data[k] === 'string');
+
+    if (isValineStyle) {
+      newGroups = [{
+        name: "Valine 导入",
+        stickers: keys.map(key => ({
+          label: key,
+          url: data[key] as string
+        }))
+      }];
+    }
+    // --- 逻辑 B: 适配 Twikoo / OwO 格式 ---
+    else if (keys.length > 0 && (Array.isArray(data[keys[0]]) || (data[keys[0]] && typeof data[keys[0]] === 'object' && data[keys[0]].container))) {
       newGroups = keys.map(key => {
         const groupData = data[key];
         const items = Array.isArray(groupData) ? groupData : (groupData.container || []);
         return {
           name: key,
           stickers: items.map((item: any) => ({
-            label: item.text || item.label || key,
-            // 适配 Twikoo 的 icon 字段或直接的 url 字段
-            url: item.icon || item.url || (typeof item === 'string' ? item : '')
+            label: typeof item === 'string' ? key : (item.text || item.label || key),
+            url: typeof item === 'string' ? item : (item.icon || item.url || '')
           }))
         };
       });
-    } 
-    // --- 逻辑 B: 适配你之前提供的 jsdelivr 简单数组格式 ---
+    }
+    // --- 逻辑 C: 适配 jsdelivr 简单数组格式 ---
     else if (Array.isArray(data[keys[0]])) {
       const baseUrl = newPackUrl.substring(0, newPackUrl.lastIndexOf('/') + 1);
       newGroups = [{
         name: `导入-${keys[0]}`,
-        stickers: data[keys[0]].map((img: string) => ({
+        stickers: (data[keys[0]] as string[]).map((img: string) => ({
           label: img.split('.')[0],
           url: img.startsWith('http') ? img : `${baseUrl}${img}`
         }))
       }];
     }
-    // --- 逻辑 C: 你的标准格式 ---
+    // --- 逻辑 D: 标准格式 ---
     else if (data.name && Array.isArray(data.stickers)) {
-      newGroups = [data];
+      newGroups = [data as unknown as StickerGroup];
     }
 
     if (newGroups.length > 0) {
-      // 过滤空数据并更新
-      const validGroups = newGroups.filter(g => g.stickers.length > 0);
+      const validGroups = newGroups.map(g => ({
+        ...g,
+        stickers: g.stickers.filter(s => s.url && typeof s.url === 'string' && s.url.startsWith('http'))
+      })).filter(g => g.stickers.length > 0);
+
       const customPacks = stickerGroups.filter(g => g.name !== '默认表情');
-      
       const finalPacks = [...customPacks, ...validGroups];
+      
       setStickerGroups([...DEFAULT_STICKERS, ...finalPacks]);
       localStorage.setItem('custom_stickers', JSON.stringify(finalPacks));
       
       setNewPackUrl("");
       setShowAddInput(false);
-      alert(`成功导入 ${validGroups.length} 个表情分组！`);
+      alert(`成功导入 ${validGroups.length} 个分组！`);
     } else {
-      throw new Error("未能识别 Twikoo 格式或 JSON 内容为空");
+      throw new Error("未能识别任何已知的表情包格式");
     }
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
