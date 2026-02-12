@@ -35,21 +35,12 @@ interface MarkdownEditorProps {
 
 const DEFAULT_STICKERS: StickerGroup[] = [
   {
-    name: "常用表情",
+    name: "默认表情",
     stickers: [
       { label: "Doge", url: "https://img.icons8.com/color/96/doge.png" },
       { label: "Cat", url: "https://img.icons8.com/color/96/bongo-cat.png" },
       { label: "Pepe", url: "https://img.icons8.com/color/96/pepe.png" },
-      { label: "Sparkles", url: "https://img.icons8.com/color/96/filled-star.png" },
-    ]
-  },
-  {
-    name: "工作日记",
-    stickers: [
-      { label: "Done", url: "https://img.icons8.com/fluency/96/ok.png" },
-      { label: "Error", url: "https://img.icons8.com/fluency/96/cancel.png" },
-      { label: "Idea", url: "https://img.icons8.com/fluency/96/light-bulb.png" },
-      { label: "Warning", url: "https://img.icons8.com/fluency/96/error.png" },
+      { label: "Ok", url: "https://img.icons8.com/fluency/96/ok-hand.png" },
     ]
   }
 ];
@@ -262,87 +253,21 @@ export function MarkdownEditor({
   };
 
   const addStickerPackByUrl = async () => {
-  if (!newPackUrl) return;
-  setIsAddingPack(true);
-  try {
-    const res = await fetch(newPackUrl);
-    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-    
-    const data = (await res.json()) as Record<string, any>;
-    const baseUrl = newPackUrl.substring(0, newPackUrl.lastIndexOf('/') + 1);
-    let newGroups: StickerGroup[] = [];
-
-    // --- 核心逻辑：智能识别并解析 ---
-    Object.keys(data).forEach(key => {
-      const value = data[key];
-
-      // 1. Twikoo / OwO 格式 (值是包含 container 的对象)
-      if (value && typeof value === 'object' && !Array.isArray(value) && value.container) {
-        newGroups.push({
-          name: key,
-          stickers: (value.container as any[]).map(item => ({
-            label: item.text || item.label || key,
-            url: item.icon?.startsWith('http') ? item.icon : `${baseUrl}${item.icon || ''}`
-          }))
-        });
+    if (!newPackUrl) return;
+    setIsAddingPack(true);
+    try {
+      const res = await fetch(newPackUrl);
+      const data = (await res.json()) as StickerGroup;
+      if (data.name && data.stickers) {
+        const customPacks = stickerGroups.filter(g => g.name !== '默认表情');
+        setStickerGroups([...DEFAULT_STICKERS, ...customPacks, data]);
+        localStorage.setItem('custom_stickers', JSON.stringify([...customPacks, data]));
+        setNewPackUrl("");
+        setShowAddInput(false);
       }
-      
-      // 2. 特殊 jsdelivr 或 简单数组格式 (你提供的那个 3630647554.json 走这里)
-      else if (Array.isArray(value)) {
-        // 针对你那个特定包的路径纠偏
-        const subPath = newPackUrl.includes('3630647554') ? 'emoji/BZ/' : '';
-        
-        newGroups.push({
-          name: key === '3630647554' ? '泡泡表情' : `分组-${key}`,
-          stickers: value.map((img: any) => {
-            const rawUrl = typeof img === 'string' ? img : (img.icon || img.url || "");
-            return {
-              label: rawUrl.split('/').pop()?.split('.')[0] || key,
-              url: rawUrl.startsWith('http') ? rawUrl : `${baseUrl}${subPath}${rawUrl}`
-            };
-          })
-        });
-      }
+    } catch (e) { alert("加载失败"); } finally { setIsAddingPack(false); }
+  };
 
-      // 3. Valine 格式 (整个 JSON 都是平铺的键值对)
-      // 如果发现第一层的值直接就是字符串(URL)，则归为 Valine 导入
-      else if (typeof value === 'string' && (value.startsWith('http') || value.includes('.'))) {
-        let valineGroup = newGroups.find(g => g.name === "Valine 导入");
-        if (!valineGroup) {
-          valineGroup = { name: "Valine 导入", stickers: [] };
-          newGroups.push(valineGroup);
-        }
-        valineGroup.stickers.push({
-          label: key,
-          url: value.startsWith('http') ? value : `${baseUrl}${value}`
-        });
-      }
-    });
-
-    // --- 最终处理 ---
-    const finalValidGroups = newGroups.filter(g => g.stickers.length > 0);
-
-    if (finalValidGroups.length > 0) {
-      const customPacks = stickerGroups.filter(g => g.name !== '默认表情');
-      const updated = [...customPacks, ...finalValidGroups];
-      
-      setStickerGroups([...DEFAULT_STICKERS, ...updated]);
-      localStorage.setItem('custom_stickers', JSON.stringify(updated));
-      
-      setNewPackUrl("");
-      setShowAddInput(false);
-      alert(`成功导入 ${finalValidGroups.length} 个表情分组！`);
-    } else {
-      throw new Error("未能识别有效的表情包格式");
-    }
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : String(err);
-    alert("导入失败: " + errorMessage);
-  } finally {
-    setIsAddingPack(false);
-  }
-};
-  
   return (
     <div className="flex flex-col mx-4 my-2 md:mx-0 md:my-0 gap-2 relative">
       <div className="flex flex-row space-x-2 mb-1 px-1 items-center">
