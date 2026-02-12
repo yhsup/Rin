@@ -35,12 +35,21 @@ interface MarkdownEditorProps {
 
 const DEFAULT_STICKERS: StickerGroup[] = [
   {
-    name: "默认表情",
+    name: "常用表情",
     stickers: [
       { label: "Doge", url: "https://img.icons8.com/color/96/doge.png" },
       { label: "Cat", url: "https://img.icons8.com/color/96/bongo-cat.png" },
       { label: "Pepe", url: "https://img.icons8.com/color/96/pepe.png" },
-      { label: "Ok", url: "https://img.icons8.com/fluency/96/ok-hand.png" },
+      { label: "Sparkles", url: "https://img.icons8.com/color/96/filled-star.png" },
+    ]
+  },
+  {
+    name: "工作日记",
+    stickers: [
+      { label: "Done", url: "https://img.icons8.com/fluency/96/ok.png" },
+      { label: "Error", url: "https://img.icons8.com/fluency/96/cancel.png" },
+      { label: "Idea", url: "https://img.icons8.com/fluency/96/light-bulb.png" },
+      { label: "Warning", url: "https://img.icons8.com/fluency/96/error.png" },
     ]
   }
 ];
@@ -265,7 +274,7 @@ export function MarkdownEditor({
         setNewPackUrl("");
         setShowAddInput(false);
       }
-    } catch (e) { alert("加载失败"); } finally { setIsAddingPack(false); }
+    } catch (e) { alert("加载失败: " + e.message); } finally { setIsAddingPack(false); }
   };
 
   return (
