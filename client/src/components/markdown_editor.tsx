@@ -269,44 +269,62 @@ export function MarkdownEditor({
     if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
     const data = await res.json();
 
-    let formattedPack: StickerGroup | null = null;
+    let newGroups: StickerGroup[] = [];
 
-    // 1. 兼容性判断：处理你提供的 jsdelivr 这种特殊格式
-    // 这种格式通常是 { "ID": ["1.png", "2.png"] }
-    const firstKey = Object.keys(data)[0];
-    if (Array.isArray(data[firstKey]) && !data.stickers) {
-      // 自动提取 CDN 基础路径 (从 URL 中分析)
-      const baseUrl = newPackUrl.substring(0, newPackUrl.lastIndexOf('/') + 1);
-      formattedPack = {
-        name: `导入分组-${firstKey}`,
-        stickers: data[firstKey].map((imgName: string) => ({
-          label: imgName.split('.')[0], // 用文件名做标签
-          url: `${baseUrl}${imgName}`   // 补全完整的 CDN 链接
-        }))
-      };
+    // --- 逻辑 A: 适配 Twikoo / OwO 格式 ---
+    // 结构通常是: { "分组名": { "type": "image", "container": [ { "icon": "url", "text": "标签" } ] } }
+    // 或者简单结构: { "分组名": [ { "icon": "url", "text": "标签" } ] }
+    const keys = Object.keys(data);
+    const isTwikoo = keys.length > 0 && (Array.isArray(data[keys[0]]) || data[keys[0]].container);
+
+    if (isTwikoo) {
+      newGroups = keys.map(key => {
+        const groupData = data[key];
+        const items = Array.isArray(groupData) ? groupData : (groupData.container || []);
+        return {
+          name: key,
+          stickers: items.map((item: any) => ({
+            label: item.text || item.label || key,
+            // 适配 Twikoo 的 icon 字段或直接的 url 字段
+            url: item.icon || item.url || (typeof item === 'string' ? item : '')
+          }))
+        };
+      });
     } 
-    // 2. 标准格式判断：符合 { name: string, stickers: [...] }
+    // --- 逻辑 B: 适配你之前提供的 jsdelivr 简单数组格式 ---
+    else if (Array.isArray(data[keys[0]])) {
+      const baseUrl = newPackUrl.substring(0, newPackUrl.lastIndexOf('/') + 1);
+      newGroups = [{
+        name: `导入-${keys[0]}`,
+        stickers: data[keys[0]].map((img: string) => ({
+          label: img.split('.')[0],
+          url: img.startsWith('http') ? img : `${baseUrl}${img}`
+        }))
+      }];
+    }
+    // --- 逻辑 C: 你的标准格式 ---
     else if (data.name && Array.isArray(data.stickers)) {
-      formattedPack = data;
+      newGroups = [data];
     }
 
-    if (formattedPack) {
-      // 过滤掉重复的默认分组，添加新分组
+    if (newGroups.length > 0) {
+      // 过滤空数据并更新
+      const validGroups = newGroups.filter(g => g.stickers.length > 0);
       const customPacks = stickerGroups.filter(g => g.name !== '默认表情');
-      const updated = [...customPacks, formattedPack];
       
-      setStickerGroups([...DEFAULT_STICKERS, ...updated]);
-      localStorage.setItem('custom_stickers', JSON.stringify(updated));
+      const finalPacks = [...customPacks, ...validGroups];
+      setStickerGroups([...DEFAULT_STICKERS, ...finalPacks]);
+      localStorage.setItem('custom_stickers', JSON.stringify(finalPacks));
       
       setNewPackUrl("");
       setShowAddInput(false);
-      alert("导入成功！");
+      alert(`成功导入 ${validGroups.length} 个表情分组！`);
     } else {
-      throw new Error("无法识别的 JSON 结构");
+      throw new Error("未能识别 Twikoo 格式或 JSON 内容为空");
     }
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
-    alert("加载失败: " + errorMessage);
+    alert("导入失败: " + errorMessage);
   } finally {
     setIsAddingPack(false);
   }
