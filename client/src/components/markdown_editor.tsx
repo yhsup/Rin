@@ -262,37 +262,56 @@ export function MarkdownEditor({
   };
 
   const addStickerPackByUrl = async () => {
-    if (!newPackUrl) return;
-    setIsAddingPack(true);
-    try {
-      const res = await fetch(newPackUrl);
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-      
-      const data = (await res.json()) as StickerGroup;
-      
-      // 验证数据格式
-      if (data && typeof data.name === 'string' && Array.isArray(data.stickers)) {
-        const customPacks = stickerGroups.filter(g => g.name !== '默认表情');
-        const updated = [...customPacks, data];
-        
-        setStickerGroups([...DEFAULT_STICKERS, ...updated]);
-        localStorage.setItem('custom_stickers', JSON.stringify(updated));
-        
-        setNewPackUrl("");
-        setShowAddInput(false);
-      } else {
-        throw new Error("JSON 格式不正确，缺少 name 或 stickers 字段");
-      }
-    } catch (err) {
-      // 修复 TS18046: 将 unknown 类型转换为 Error 类型
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      alert("加载失败: " + errorMessage);
-      console.error("Sticker load error:", err);
-    } finally {
-      setIsAddingPack(false);
-    }
-  };
+  if (!newPackUrl) return;
+  setIsAddingPack(true);
+  try {
+    const res = await fetch(newPackUrl);
+    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+    const data = await res.json();
 
+    let formattedPack: StickerGroup | null = null;
+
+    // 1. 兼容性判断：处理你提供的 jsdelivr 这种特殊格式
+    // 这种格式通常是 { "ID": ["1.png", "2.png"] }
+    const firstKey = Object.keys(data)[0];
+    if (Array.isArray(data[firstKey]) && !data.stickers) {
+      // 自动提取 CDN 基础路径 (从 URL 中分析)
+      const baseUrl = newPackUrl.substring(0, newPackUrl.lastIndexOf('/') + 1);
+      formattedPack = {
+        name: `导入分组-${firstKey}`,
+        stickers: data[firstKey].map((imgName: string) => ({
+          label: imgName.split('.')[0], // 用文件名做标签
+          url: `${baseUrl}${imgName}`   // 补全完整的 CDN 链接
+        }))
+      };
+    } 
+    // 2. 标准格式判断：符合 { name: string, stickers: [...] }
+    else if (data.name && Array.isArray(data.stickers)) {
+      formattedPack = data;
+    }
+
+    if (formattedPack) {
+      // 过滤掉重复的默认分组，添加新分组
+      const customPacks = stickerGroups.filter(g => g.name !== '默认表情');
+      const updated = [...customPacks, formattedPack];
+      
+      setStickerGroups([...DEFAULT_STICKERS, ...updated]);
+      localStorage.setItem('custom_stickers', JSON.stringify(updated));
+      
+      setNewPackUrl("");
+      setShowAddInput(false);
+      alert("导入成功！");
+    } else {
+      throw new Error("无法识别的 JSON 结构");
+    }
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    alert("加载失败: " + errorMessage);
+  } finally {
+    setIsAddingPack(false);
+  }
+};
+  
   return (
     <div className="flex flex-col mx-4 my-2 md:mx-0 md:my-0 gap-2 relative">
       <div className="flex flex-row space-x-2 mb-1 px-1 items-center">
